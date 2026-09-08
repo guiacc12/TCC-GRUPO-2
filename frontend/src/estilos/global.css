@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-grafite-950 text-osso font-corpo antialiased;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 70% -10%, rgba(200, 174, 126, 0.06), transparent),
+      radial-gradient(ellipse 60% 40% at 0% 100%, rgba(143, 168, 188, 0.04), transparent);
+    background-attachment: fixed;
+  }
+  ::selection {
+    @apply bg-bronze/30;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(233, 229, 220, 0.12);
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* Cartão glassmorphism sutil — o bloco editorial padrão */
+  .cartao {
+    @apply bg-vidro backdrop-blur-md border border-linha rounded-cartao;
+  }
+  .cartao-hover {
+    @apply transition-colors duration-300 hover:bg-vidro-forte hover:border-linha-forte;
+  }
+  /* Etiqueta de seção estilo revista */
+  .etiqueta {
+    @apply text-[11px] uppercase tracking-etiqueta text-osso-mudo font-medium;
+  }
+  .campo {
+    @apply w-full bg-grafite-900/80 border border-linha rounded-campo px-3.5 py-2.5 text-sm text-osso
+      placeholder:text-osso-mudo/60 outline-none transition-colors duration-200
+      focus:border-bronze/50 focus:bg-grafite-900;
+  }
+  .titulo-editorial {
+    @apply font-editorial font-light text-osso;
+  }
+}

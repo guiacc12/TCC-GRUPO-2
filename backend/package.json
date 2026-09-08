@@ -1,0 +1,24 @@
+{
+  "name": "saas-leads-backend",
+  "version": "0.1.0",
+  "description": "API do SaaS de captura de leads e roteamento (CRM + WhatsApp via Evolution API)",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node --watch src/servidor.js",
+    "start": "node src/servidor.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.11.5",
+    "zod": "^3.24.1"
+  }
+}
