@@ -21,34 +21,58 @@ export default function Crm() {
   const [configLeadPass, setConfigLeadPass] = useState(undefined);
   const [tipoSelecionado, setTipoSelecionado] = useState(null);
   const [teste, setTeste] = useState(null);
+  const [desativando, setDesativando] = useState(false);
+  const [salvandoPrimario, setSalvandoPrimario] = useState(false);
   const [testeLeadPass, setTesteLeadPass] = useState(null);
   const [mostrarFormLeadPass, setMostrarFormLeadPass] = useState(false);
   const ref = useRevelar([configuracao !== undefined, configLeadPass !== undefined, tipoSelecionado]);
 
   async function carregar() {
-    const [dadosCrm, dadosLeadPass] = await Promise.all([
-      api('/api/empresa/crm/configuracao'),
-      api('/api/empresa/crm/leadpass'),
-    ]);
+    const dadosCrm = await api('/api/empresa/crm/configuracao');
     setConfiguracao(dadosCrm.configuracao);
     setTipoSelecionado(dadosCrm.configuracao?.tipo_crm ?? null);
+  }
+
+  async function carregarLeadPass() {
+    const dadosLeadPass = await api('/api/empresa/crm/leadpass');
     setConfigLeadPass(dadosLeadPass.configuracao);
   }
 
   useEffect(() => {
-    carregar().catch((erro) => avisar(erro.message, 'erro'));
+    Promise.all([carregar(), carregarLeadPass()]).catch((erro) => avisar(erro.message, 'erro'));
   }, []);
 
   async function testarConexao() {
     setTeste({ executando: true });
     try {
       const { teste: resultado } = await api('/api/empresa/crm/configuracao/testar', { metodo: 'POST' });
+      await carregar();
       setTeste(resultado);
       avisar(resultado.detalhe, resultado.ok ? 'ok' : 'erro');
-      carregar();
     } catch (erro) {
       setTeste({ ok: false, detalhe: erro.message });
       avisar(erro.message, 'erro');
+    }
+  }
+
+  async function desativarCrm() {
+    if (desativando || salvandoPrimario || teste?.executando) return;
+    if (!window.confirm(
+      `Desativar ${configuracao.nome}? Novos processamentos deixarão de enviar para esse CRM. ` +
+      'LeadPass, WhatsApp e o histórico serão mantidos. Envios já iniciados poderão terminar. ' +
+      'Você poderá configurar um CRM novamente nesta página.'
+    )) return;
+    setDesativando(true);
+    try {
+      await api('/api/empresa/crm/configuracao', { metodo: 'DELETE' });
+      setConfiguracao(null);
+      setTipoSelecionado(null);
+      setTeste(null);
+      avisar('CRM principal desativado.');
+    } catch (erro) {
+      avisar(erro.message, 'erro');
+    } finally {
+      setDesativando(false);
     }
   }
 
@@ -58,7 +82,7 @@ export default function Crm() {
       const { teste: resultado } = await api('/api/empresa/crm/leadpass/testar', { metodo: 'POST' });
       setTesteLeadPass(resultado);
       avisar(resultado.detalhe, resultado.ok ? 'ok' : 'erro');
-      carregar();
+      await carregarLeadPass();
     } catch (erro) {
       setTesteLeadPass({ ok: false, detalhe: erro.message });
       avisar(erro.message, 'erro');
@@ -87,7 +111,7 @@ export default function Crm() {
       />
 
       {/* Status CRM primário */}
-      {configuracao && (
+      {configuracao ? (
         <div className="cartao p-4 mb-8 flex flex-wrap items-center gap-3" data-revelar>
           <Badge tom="info">{configuracao.nome}</Badge>
           <span className="text-sm text-osso-suave">é o CRM ativo desta conta.</span>
@@ -97,37 +121,48 @@ export default function Crm() {
               {configuracao.ultimo_teste_ok ? 'ok' : 'falhou'}
             </span>
           )}
-          <span className="ml-auto">
-            <Botao variante="fantasma" onClick={testarConexao} carregando={teste?.executando}>
+          <span className="sm:ml-auto flex flex-wrap gap-2">
+            <Botao variante="fantasma" onClick={testarConexao} carregando={teste?.executando} disabled={desativando || salvandoPrimario || teste?.executando}>
               Testar conexão
+            </Botao>
+            <Botao variante="perigo" onClick={desativarCrm} carregando={desativando} disabled={desativando || salvandoPrimario || teste?.executando}>
+              Desativar CRM
             </Botao>
           </span>
         </div>
+      ) : (
+        <div className="cartao p-4 mb-8 space-y-1" role="status">
+          <p className="text-sm text-osso-suave">Nenhum CRM principal ativo.</p>
+          <p className="text-xs text-osso-mudo">Escolha uma opção abaixo para configurar. LeadPass e WhatsApp continuam seguindo suas próprias configurações.</p>
+        </div>
       )}
 
-      {/* Seletor CRM primário */}
-      <div className="grid md:grid-cols-2 gap-3 mb-8" data-revelar>
-        {CRMS_PRIMARIOS.map((crm) => (
-          <button
-            key={crm.tipo}
-            onClick={() => setTipoSelecionado(crm.tipo)}
-            className={`cartao p-5 text-left transition-all duration-200 ${
-              tipoSelecionado === crm.tipo
-                ? 'border-bronze/60 bg-vidro-forte'
-                : 'cartao-hover'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="font-editorial text-lg">{crm.nome}</h3>
-              {configuracao?.tipo_crm === crm.tipo && <Badge tom="ok">ativo</Badge>}
-            </div>
-            <p className="text-xs text-osso-mudo mt-2 leading-relaxed">{crm.descricao}</p>
-          </button>
-        ))}
-      </div>
+      <fieldset disabled={desativando || salvandoPrimario || teste?.executando} className="min-w-0">
+        <legend className="sr-only">Configuração do CRM principal</legend>
+        {/* Seletor CRM primário */}
+        <div className="grid md:grid-cols-2 gap-3 mb-8" data-revelar>
+          {CRMS_PRIMARIOS.map((crm) => (
+            <button
+              key={crm.tipo}
+              onClick={() => setTipoSelecionado(crm.tipo)}
+              className={`cartao p-5 text-left transition-all duration-200 ${
+                tipoSelecionado === crm.tipo
+                  ? 'border-bronze/60 bg-vidro-forte'
+                  : 'cartao-hover'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="font-editorial text-lg">{crm.nome}</h3>
+                {configuracao?.tipo_crm === crm.tipo && <Badge tom="ok">ativo</Badge>}
+              </div>
+              <p className="text-xs text-osso-mudo mt-2 leading-relaxed">{crm.descricao}</p>
+            </button>
+          ))}
+        </div>
 
-      {tipoSelecionado === 'pipedrive' && <FormularioPipedrive configuracao={configuracao} aoSalvar={carregar} />}
-      {tipoSelecionado === 'piperun' && <FormularioPipeRun configuracao={configuracao} aoSalvar={carregar} />}
+        {tipoSelecionado === 'pipedrive' && <FormularioPipedrive configuracao={configuracao} aoSalvar={carregar} aoMudarEnvio={setSalvandoPrimario} />}
+        {tipoSelecionado === 'piperun' && <FormularioPipeRun configuracao={configuracao} aoSalvar={carregar} aoMudarEnvio={setSalvandoPrimario} />}
+      </fieldset>
 
       {/* Seção LeadPass — backup universal */}
       <div className="mt-10 pt-8 border-t border-vidro" data-revelar>
@@ -172,7 +207,7 @@ export default function Crm() {
         {(!configLeadPass || mostrarFormLeadPass) && (
           <FormularioLeadPass
             configLeadPass={configLeadPass}
-            aoSalvar={() => { setMostrarFormLeadPass(false); carregar(); }}
+            aoSalvar={() => { setMostrarFormLeadPass(false); carregarLeadPass().catch((erro) => avisar(erro.message, 'erro')); }}
             aoCancelar={configLeadPass ? () => setMostrarFormLeadPass(false) : null}
           />
         )}
@@ -185,19 +220,21 @@ export default function Crm() {
 // Formulários
 // ---------------------------------------------------------------------------
 
-function usarEnvioCrmPrimario(montarCorpo, aoSalvar) {
+function usarEnvioCrmPrimario(montarCorpo, aoSalvar, aoMudarEnvio) {
   const [carregando, setCarregando] = useState(false);
   async function enviar(evento) {
     evento.preventDefault();
     setCarregando(true);
+    aoMudarEnvio(true);
     try {
       await api('/api/empresa/crm/configuracao', { metodo: 'PUT', corpo: montarCorpo() });
       avisar('CRM configurado. Faça um teste de conexão.');
-      aoSalvar();
+      await aoSalvar();
     } catch (erro) {
       avisar(erro.message, 'erro');
     } finally {
       setCarregando(false);
+      aoMudarEnvio(false);
     }
   }
   return { enviar, carregando };
@@ -209,7 +246,7 @@ function parsearConfigJson(valor) {
   return valor;
 }
 
-function FormularioPipedrive({ configuracao, aoSalvar }) {
+function FormularioPipedrive({ configuracao, aoSalvar, aoMudarEnvio }) {
   const configAtual = configuracao?.tipo_crm === 'pipedrive' ? parsearConfigJson(configuracao.config_json) : {};
   const [dados, setDados] = useState({
     api_token: '',
@@ -273,7 +310,7 @@ function FormularioPipedrive({ configuracao, aoSalvar }) {
         ...(dados.owner_id && { owner_id: dados.owner_id }),
       },
     }),
-    aoSalvar
+    aoSalvar, aoMudarEnvio
   );
 
   return (
@@ -340,7 +377,7 @@ function FormularioPipedrive({ configuracao, aoSalvar }) {
   );
 }
 
-function FormularioPipeRun({ configuracao, aoSalvar }) {
+function FormularioPipeRun({ configuracao, aoSalvar, aoMudarEnvio }) {
   const configAtual = configuracao?.tipo_crm === 'piperun' ? parsearConfigJson(configuracao.config_json) : {};
   const [dados, setDados] = useState({
     token: '',
@@ -408,7 +445,7 @@ function FormularioPipeRun({ configuracao, aoSalvar }) {
         ...(camposOcultosParsed.length > 0 && { campos_ocultos: camposOcultosParsed }),
       },
     }),
-    aoSalvar
+    aoSalvar, aoMudarEnvio
   );
 
   return (

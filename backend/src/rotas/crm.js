@@ -31,6 +31,7 @@ const esquemaConfiguracaoPrimaria = z.discriminatedUnion('tipo_crm', [
       pipeline_id: z.coerce.number().optional(),
       stage_id: z.coerce.number().optional(),
       owner_id: z.coerce.number().optional(),
+      campos_ocultos: z.array(z.string().min(1).max(160)).max(200).optional(),
     }).default({}),
   }),
 ]);
@@ -94,6 +95,19 @@ rotasCrm.put('/configuracao', async (req, res, next) => {
     });
 
     res.status(201).json({ sucesso: true, configuracao_id: configuracaoId });
+  } catch (erro) {
+    next(erro);
+  }
+});
+
+// Desativa o CRM primário sem apagar histórico ou alterar o LeadPass.
+rotasCrm.delete('/configuracao', async (req, res, next) => {
+  try {
+    await banco.query(
+      "UPDATE crm_configuracoes SET ativo = 0 WHERE empresa_id = ? AND tipo_crm != 'leadpass' AND ativo = 1",
+      [req.empresaId]
+    );
+    res.json({ sucesso: true });
   } catch (erro) {
     next(erro);
   }

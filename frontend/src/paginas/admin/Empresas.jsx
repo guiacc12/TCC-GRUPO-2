@@ -10,6 +10,7 @@ const TOM_STATUS = { ativa: 'ok', suspensa: 'aviso', cancelada: 'erro' };
 export default function Empresas() {
   const [empresas, setEmpresas] = useState(null);
   const [modalAberto, setModalAberto] = useState(false);
+  const [empresaEdicao, setEmpresaEdicao] = useState(null);
   const ref = useRevelar([empresas !== null]);
 
   async function carregar() {
@@ -37,7 +38,7 @@ export default function Empresas() {
       <CabecalhoPagina
         etiqueta="Tenants"
         titulo="Empresas"
-        descricao="Crie, suspenda e acompanhe as contas que usam a plataforma."
+        descricao="Crie, edite, suspenda e acompanhe as contas que usam a plataforma."
         acoes={<Botao onClick={() => setModalAberto(true)}>Nova empresa</Botao>}
       />
 
@@ -59,6 +60,7 @@ export default function Empresas() {
                 <p className="text-xs text-osso-mudo mt-1">
                   /{empresa.slug} · desde {formatarData(empresa.criado_em)}
                 </p>
+                {empresa.email_contato && <p className="text-xs text-osso-mudo mt-1 break-all">{empresa.email_contato}</p>}
               </div>
 
               <dl className="flex gap-8 text-center">
@@ -75,6 +77,7 @@ export default function Empresas() {
               </dl>
 
               <div className="flex gap-2">
+                <Botao variante="fantasma" onClick={() => setEmpresaEdicao(empresa)}>Editar</Botao>
                 {empresa.status === 'ativa' ? (
                   <Botao variante="perigo" onClick={() => mudarStatus(empresa, 'suspensa')}>Suspender</Botao>
                 ) : (
@@ -94,7 +97,58 @@ export default function Empresas() {
           carregar();
         }}
       />
+      {empresaEdicao && (
+        <ModalEditarEmpresa
+          key={empresaEdicao.id}
+          empresa={empresaEdicao}
+          aoFechar={() => setEmpresaEdicao(null)}
+          aoSalvar={async () => {
+            await carregar();
+            setEmpresaEdicao(null);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function ModalEditarEmpresa({ empresa, aoFechar, aoSalvar }) {
+  const [dados, setDados] = useState({ nome: empresa.nome, slug: empresa.slug, email_contato: empresa.email_contato || '' });
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState('');
+  const mudar = (chave) => (evento) => setDados((atual) => ({ ...atual, [chave]: evento.target.value }));
+  const fechar = () => { if (!carregando) aoFechar(); };
+
+  async function salvar(evento) {
+    evento.preventDefault();
+    if (carregando) return;
+    setCarregando(true);
+    setErro('');
+    try {
+      await api(`/api/admin/empresas/${empresa.id}`, { metodo: 'PUT', perfil: 'admin', corpo: dados });
+      await aoSalvar();
+      avisar('Dados da empresa atualizados.');
+    } catch (falha) {
+      setErro(falha.message);
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  return (
+    <Modal aberto titulo="Editar empresa" aoFechar={fechar}>
+      <form onSubmit={salvar} className="space-y-4">
+        <p className="text-sm text-osso-mudo">Atualize os dados de cadastro. O acesso do proprietário e os dados vinculados à empresa serão preservados.</p>
+        <Campo rotulo="Nome da empresa" value={dados.nome} onChange={mudar('nome')} required minLength={2} maxLength={160} disabled={carregando} />
+        <Campo rotulo="Slug" value={dados.slug} onChange={mudar('slug')} required minLength={2} maxLength={80} pattern="[a-z0-9-]+" dica="letras minúsculas, números e hífens" disabled={carregando} />
+        <Campo rotulo="E-mail de contato" type="email" value={dados.email_contato} onChange={mudar('email_contato')} maxLength={160} disabled={carregando} dica="Opcional. Deixe em branco para remover o contato." />
+        {erro && <p role="alert" className="text-sm text-red-400">{erro}</p>}
+        <div className="flex justify-end gap-3 pt-2">
+          <Botao variante="sutil" type="button" onClick={fechar} disabled={carregando}>Cancelar</Botao>
+          <Botao type="submit" carregando={carregando}>Salvar alterações</Botao>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

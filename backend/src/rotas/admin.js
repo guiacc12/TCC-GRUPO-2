@@ -61,6 +61,29 @@ rotasAdmin.get('/empresas', async (req, res, next) => {
   }
 });
 
+const esquemaEdicaoEmpresa = z.object({
+  nome: z.string().trim().min(2).max(160),
+  slug: esquemaNovaEmpresa.shape.slug,
+  email_contato: z.union([z.string().trim().email().max(160), z.literal(''), z.null()]).optional(),
+});
+
+// Edita apenas o cadastro; usuários, status e vínculos continuam nas operações próprias.
+rotasAdmin.put('/empresas/:id', async (req, res, next) => {
+  try {
+    const id = z.string().regex(/^[1-9]\d*$/, 'ID inválido').parse(req.params.id);
+    const dados = esquemaEdicaoEmpresa.parse(req.body);
+    const [resultado] = await banco.query(
+      'UPDATE empresas SET nome = ?, slug = ?, email_contato = ? WHERE id = ?',
+      [dados.nome, dados.slug, dados.email_contato || null, id]
+    );
+    if (resultado.affectedRows === 0) throw new ErroHttp(404, 'Empresa não encontrada');
+    res.json({ sucesso: true });
+  } catch (erro) {
+    if (erro.code === 'ER_DUP_ENTRY') return next(new ErroHttp(409, 'Slug da empresa já cadastrado'));
+    next(erro);
+  }
+});
+
 const esquemaStatus = z.object({ status: z.enum(['ativa', 'suspensa', 'cancelada']) });
 
 // Suspender/reativar/cancelar tenant — efeito imediato (middleware reconsulta o status)
