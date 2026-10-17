@@ -9,6 +9,7 @@ import Implementar from './paginas/empresa/Implementar.jsx';
 import Whatsapp from './paginas/empresa/Whatsapp.jsx';
 import Crm from './paginas/empresa/Crm.jsx';
 import Dominios from './paginas/empresa/Dominios.jsx';
+import Relatorios from './paginas/empresa/Relatorios.jsx';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/painel" element={<LayoutEmpresa />}>
           <Route index element={<VisaoGeral />} />
           <Route path="leads" element={<Leads />} />
+          <Route path="relatorios" element={<Relatorios />} />
           <Route path="formularios" element={<Formularios />} />
           <Route path="formularios/:id/implementar" element={<Implementar />} />
           <Route path="whatsapp" element={<Whatsapp />} />

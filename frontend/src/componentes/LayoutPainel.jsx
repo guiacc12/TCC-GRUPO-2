@@ -5,6 +5,7 @@ import { Avisos } from './ui.jsx';
 const ITENS_EMPRESA = [
   { para: '/painel', texto: 'Visão geral', fim: true },
   { para: '/painel/leads', texto: 'Leads' },
+  { para: '/painel/relatorios', texto: 'Relatórios' },
   { para: '/painel/formularios', texto: 'Formulários' },
   { para: '/painel/whatsapp', texto: 'WhatsApp' },
   { para: '/painel/crm', texto: 'CRM' },

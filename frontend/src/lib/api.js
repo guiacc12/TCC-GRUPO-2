@@ -48,6 +48,36 @@ export async function api(caminho, { metodo = 'GET', corpo, perfil = 'empresa' }
   return dados;
 }
 
+/**
+ * Baixa um arquivo de rota autenticada (ex.: CSV). Um <a href> comum não envia o
+ * Bearer token, então buscamos com fetch e disparamos o download a partir do Blob.
+ */
+export async function baixarArquivo(caminho, nomePadrao, { perfil = 'empresa' } = {}) {
+  const token = sessao.obter(perfil)?.token;
+  const resposta = await fetch(`${BASE}${caminho}`, {
+    headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+  });
+
+  if (resposta.status === 401 && token) {
+    sessao.limpar(perfil);
+    window.location.href = perfil === 'admin' ? '/admin/login' : '/login';
+    throw new ErroApi(401, 'Sessão expirada');
+  }
+  if (!resposta.ok) {
+    const dados = await resposta.json().catch(() => ({}));
+    const detalhe = dados.detalhes?.map((d) => `${d.campo}: ${d.mensagem}`).join('; ');
+    throw new ErroApi(resposta.status, detalhe || dados.erro || `Erro ${resposta.status}`, dados.detalhes);
+  }
+
+  const nome = /filename="([^"]+)"/.exec(resposta.headers.get('Content-Disposition') || '')?.[1] || nomePadrao;
+  const url = URL.createObjectURL(await resposta.blob());
+  const link = Object.assign(document.createElement('a'), { href: url, download: nome });
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 /** URL pública da API — usada nos snippets de embed (precisa ser absoluta em produção). */
 export function urlPublicaDaApi() {
   return BASE || `${window.location.origin}`;

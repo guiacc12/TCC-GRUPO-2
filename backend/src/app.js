@@ -11,6 +11,7 @@ import { rotasDominios } from './rotas/dominios.js';
 import { rotasLeads } from './rotas/leads.js';
 import { rotasCrm } from './rotas/crm.js';
 import { rotasWhatsapp } from './rotas/whatsapp.js';
+import { rotasRelatorios } from './rotas/relatorios.js';
 
 export const app = express();
 
@@ -50,6 +51,7 @@ app.use('/api/empresa/dominios', rotasDominios);
 app.use('/api/empresa/leads', rotasLeads);
 app.use('/api/empresa/crm', rotasCrm);
 app.use('/api/empresa/whatsapp', rotasWhatsapp);
+app.use('/api/empresa/relatorios', rotasRelatorios);
 
 app.use(rota404);
 app.use(tratadorDeErros);
