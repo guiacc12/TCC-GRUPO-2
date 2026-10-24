@@ -112,8 +112,9 @@ async function gerarCaptacao(empresaId, { de, ate, formulario_id: formularioId }
 }
 
 // ---------------------------------------------------------------------------
-// CSV (RNF-60): UTF-8 com BOM, separador ";" (padrão do Excel em pt-BR) e
-// proteção contra injeção de fórmula em planilhas.
+// CSV (RNF-60): UTF-8, separador ";" e proteção contra injeção de fórmula.
+// A 1ª linha "sep=;" faz o Excel separar as colunas em qualquer região. Sem BOM:
+// com BOM o Excel ignora o "sep=" e volta a usar o separador do sistema.
 // ---------------------------------------------------------------------------
 
 function celulaCsv(valor) {
@@ -141,7 +142,7 @@ function montarCsv(relatorio) {
     ['Formulário', 'Quantidade'],
     ...relatorio.por_formulario.map((linha) => [linha.nome, linha.total]),
   ];
-  return `${linhas.map((linha) => linha.map(celulaCsv).join(';')).join('\r\n')}\r\n`;
+  return `sep=;\r\n${linhas.map((linha) => linha.map(celulaCsv).join(';')).join('\r\n')}\r\n`;
 }
 
 // empresa_id vem SEMPRE do JWT (req.empresaId), nunca da query
