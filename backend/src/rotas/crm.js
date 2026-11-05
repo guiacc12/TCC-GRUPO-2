@@ -266,8 +266,8 @@ rotasCrm.post('/pipedrive/dados', async (req, res, next) => {
       const resp = await fetch(`${base}${caminho}`, { headers });
       const corpo = await resp.json().catch(() => ({}));
       if (!resp.ok || corpo.success !== true) {
-        throw new ErroHttp(resp.status === 401 ? 401 : 502, corpo.error || `Pipedrive HTTP ${resp.status}`);
-      }
+        throw new ErroHttp(502, corpo.error || `Pipedrive HTTP ${resp.status}`);
+      }2
       return corpo.data || [];
     }
 
@@ -299,7 +299,7 @@ rotasCrm.post('/piperun/dados', async (req, res, next) => {
       const resp = await fetch(`https://api.pipe.run/v1${caminho}`, { headers });
       const corpo = await resp.json().catch(() => ({}));
       if (!resp.ok || corpo.success === false) {
-        throw new ErroHttp(resp.status === 401 ? 401 : 502, corpo.message || `PipeRun HTTP ${resp.status}`);
+        throw new ErroHttp(502, corpo.message || `PipeRun HTTP ${resp.status}`);
       }
       return corpo.data || [];
     }
@@ -340,7 +340,7 @@ rotasCrm.post('/leadpass/dados', async (req, res, next) => {
       const corpo = await resp.json().catch(() => ({}));
       if (!resp.ok) {
         const msg = corpo.message || corpo.error || JSON.stringify(corpo).slice(0, 200);
-        throw new ErroHttp(resp.status === 401 ? 401 : 502, `LeadPass HTTP ${resp.status} ${caminho}: ${msg}`);
+        throw new ErroHttp(502, `LeadPass HTTP ${resp.status} ${caminho}: ${msg}`);
       }
       return corpo;
     }
