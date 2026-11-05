@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { api, baixarArquivo } from '../../lib/api.js';
+import { api, baixarArquivo, sessao } from '../../lib/api.js';
+import {
+  TITULOS, dataBr, diaSemana, imprimirRelatorio, pct, textoComparacao, textoSemOrigem, textoTaxaAnterior,
+} from '../../lib/imprimirRelatorio.js';
 import { Botao, CabecalhoPagina, Campo, Carregando, EstadoVazio, Selecao, avisar } from '../../componentes/ui.jsx';
 import { useRevelar } from '../../lib/animacoes.js';
 
-// O valor do tipo é o caminho da API: /api/empresa/relatorios/<tipo>[.csv]
-const RELATORIOS = {
-  'captacao-leads': { texto: 'Captação de leads', usaFormulario: true },
-  'origem-leads': { texto: 'Origem dos leads', usaFormulario: false },
-  'entregas-integracoes': { texto: 'Entregas e falhas das integrações', usaFormulario: false },
-};
-const OPCOES_RELATORIO = Object.entries(RELATORIOS).map(([valor, { texto }]) => ({ valor, texto }));
+// O valor do tipo é o caminho da API: /api/empresa/relatorios/<tipo>[.csv]. Os títulos são
+// os mesmos do PDF; só a captação tem filtro de formulário.
+const USA_FORMULARIO = { 'captacao-leads': true };
+const OPCOES_RELATORIO = Object.entries(TITULOS).map(([valor, texto]) => ({ valor, texto }));
 const NAO_INFORMADO = 'Não informado';
+const ALERTA_SEM_ORIGEM = 30; // % de leads sem utm_source a partir do qual a tela destaca o indicador
 const LIMITE_DIAS = 366;
 
 /** Data de hoje (AAAA-MM-DD) no fuso de São Paulo — o "en-CA" já formata em ISO. */
@@ -21,12 +22,6 @@ function hojeEmSaoPaulo() {
 function somarDias(data, dias) {
   return new Date(Date.parse(`${data}T00:00:00Z`) + dias * 86400000).toISOString().slice(0, 10);
 }
-
-const dataBr = (iso) => iso.split('-').reverse().join('/');
-const diaDaSemana = (iso) =>
-  new Date(`${iso}T12:00:00Z`).toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' });
-const percentualBr = (valor) =>
-  `${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 
 /** Mesmas regras do servidor — validar aqui só evita uma ida à API à toa. */
 function validar({ de, ate }) {
@@ -39,7 +34,7 @@ function validar({ de, ate }) {
 
 function consultaDe(filtros, tipo) {
   const consulta = new URLSearchParams({ de: filtros.de, ate: filtros.ate });
-  if (RELATORIOS[tipo].usaFormulario && filtros.formulario_id) consulta.set('formulario_id', filtros.formulario_id);
+  if (USA_FORMULARIO[tipo] && filtros.formulario_id) consulta.set('formulario_id', filtros.formulario_id);
   return consulta.toString();
 }
 
@@ -110,6 +105,15 @@ export default function Relatorios() {
     }
   }
 
+  // Imprime exatamente o resultado exibido (mesmo objeto da tela), em A4 com fundo branco
+  function exportarPdf() {
+    try {
+      imprimirRelatorio(relatorio, sessao.obter('empresa')?.usuario?.empresa);
+    } catch (erro) {
+      avisar(erro.message, 'erro');
+    }
+  }
+
   const alterar = (campo) => (evento) => setFiltros((atuais) => ({ ...atuais, [campo]: evento.target.value }));
 
   return (
@@ -122,7 +126,7 @@ export default function Relatorios() {
 
       <form
         className={`cartao p-5 mb-8 grid gap-4 sm:grid-cols-2 items-end ${
-          RELATORIOS[tipo].usaFormulario
+          USA_FORMULARIO[tipo]
             ? 'xl:grid-cols-[1.2fr_150px_150px_1.2fr_auto]'
             : 'xl:grid-cols-[1.2fr_150px_150px_auto]'
         }`}
@@ -133,10 +137,18 @@ export default function Relatorios() {
         noValidate
         data-revelar
       >
-        <Selecao rotulo="Relatório" value={tipo} onChange={(e) => trocarTipo(e.target.value)} opcoes={OPCOES_RELATORIO} />
+        {/* Travado durante a geração: trocar o tipo com uma consulta em andamento mostraria o
+            resultado do relatório antigo sob o nome do novo */}
+        <Selecao
+          rotulo="Relatório"
+          value={tipo}
+          onChange={(e) => trocarTipo(e.target.value)}
+          opcoes={OPCOES_RELATORIO}
+          disabled={estado === 'carregando'}
+        />
         <Campo rotulo="Data inicial" type="date" required value={filtros.de} max={filtros.ate || undefined} onChange={alterar('de')} />
         <Campo rotulo="Data final" type="date" required value={filtros.ate} min={filtros.de || undefined} onChange={alterar('ate')} />
-        {RELATORIOS[tipo].usaFormulario && (
+        {USA_FORMULARIO[tipo] && (
           <Selecao
             rotulo="Formulário"
             value={filtros.formulario_id}
@@ -180,27 +192,31 @@ export default function Relatorios() {
         )}
 
         {estado === 'pronto' && relatorio?.tipo === 'captacao-leads' && (
-          <ResultadoCaptacao relatorio={relatorio} aoExportar={exportarCsv} exportando={exportando} />
+          <ResultadoCaptacao relatorio={relatorio} aoExportar={exportarCsv} aoImprimir={exportarPdf} exportando={exportando} />
         )}
         {estado === 'pronto' && relatorio?.tipo === 'origem-leads' && (
-          <ResultadoOrigem relatorio={relatorio} aoExportar={exportarCsv} exportando={exportando} />
+          <ResultadoOrigem relatorio={relatorio} aoExportar={exportarCsv} aoImprimir={exportarPdf} exportando={exportando} />
         )}
         {estado === 'pronto' && relatorio?.tipo === 'entregas-integracoes' && (
-          <ResultadoEntregas relatorio={relatorio} aoExportar={exportarCsv} exportando={exportando} />
+          <ResultadoEntregas relatorio={relatorio} aoExportar={exportarCsv} aoImprimir={exportarPdf} exportando={exportando} />
         )}
       </section>
     </div>
   );
 }
 
-const COR_INDICADOR = { ok: 'text-estado-ok', erro: 'text-estado-erro' };
+const COR_INDICADOR = { ok: 'text-estado-ok', erro: 'text-estado-erro', aviso: 'text-estado-aviso' };
 
-/** Cartão do período + total; `extras` ([{ rotulo, valor, tom }]) acrescenta indicadores ao lado. */
-function ResumoPeriodo({ periodo, total, detalhe, rotuloTotal = 'Total de leads', extras = [] }) {
-  const indicadores = [{ rotulo: rotuloTotal, valor: total }, ...extras];
+/**
+ * Cartão do período + indicadores ([{ rotulo, valor, tom, nota }]). Com um só indicador ele
+ * fica ao lado do período; com vários, o período ocupa a linha toda.
+ */
+function ResumoPeriodo({ periodo, detalhe, indicadores }) {
+  const varios = indicadores.length > 1;
+  const colunas = indicadores.length > 2 ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2';
   return (
-    <div className={`grid gap-3 mb-6 ${extras.length ? 'md:grid-cols-3 xl:grid-cols-[2fr_1fr_1fr_1fr]' : 'md:grid-cols-[2fr_1fr]'}`}>
-      <article className={`cartao p-6 bg-vidro-forte ${extras.length ? 'md:col-span-3 xl:col-span-1' : ''}`} data-revelar>
+    <div className={`grid gap-3 mb-6 ${varios ? colunas : 'md:grid-cols-[2fr_1fr]'}`}>
+      <article className={`cartao p-6 bg-vidro-forte ${varios ? 'col-span-full' : ''}`} data-revelar>
         <p className="etiqueta">Período consultado</p>
         <p className="titulo-editorial text-2xl mt-2">{`${dataBr(periodo.de)} a ${dataBr(periodo.ate)}`}</p>
         <p className="text-sm text-osso-mudo mt-1">{detalhe} · horário de Brasília</p>
@@ -209,10 +225,24 @@ function ResumoPeriodo({ periodo, total, detalhe, rotuloTotal = 'Total de leads'
         <article key={indicador.rotulo} className="cartao p-6" data-revelar>
           <p className="etiqueta">{indicador.rotulo}</p>
           <p className={`titulo-editorial text-4xl mt-2 ${COR_INDICADOR[indicador.tom] ?? ''}`}>
-            {indicador.valor.toLocaleString('pt-BR')}
+            {typeof indicador.valor === 'number' ? indicador.valor.toLocaleString('pt-BR') : indicador.valor}
           </p>
+          {indicador.nota && <p className="text-xs text-osso-mudo mt-2">{indicador.nota}</p>}
         </article>
       ))}
+    </div>
+  );
+}
+
+function BotoesExportar({ aoExportar, aoImprimir, exportando }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Botao variante="fantasma" onClick={aoImprimir}>
+        Exportar PDF
+      </Botao>
+      <Botao variante="fantasma" onClick={aoExportar} carregando={exportando}>
+        {exportando ? 'Exportando…' : 'Exportar CSV'}
+      </Botao>
     </div>
   );
 }
@@ -221,13 +251,15 @@ function SemLeads() {
   return <EstadoVazio titulo="Não há leads no período" descricao="Nenhum lead foi capturado entre as datas selecionadas." />;
 }
 
-function ResultadoCaptacao({ relatorio, aoExportar, exportando }) {
+function ResultadoCaptacao({ relatorio, aoExportar, aoImprimir, exportando }) {
   return (
     <>
       <ResumoPeriodo
         periodo={relatorio.periodo}
-        total={relatorio.total}
         detalhe={relatorio.formulario?.nome || 'Todos os formulários'}
+        indicadores={[
+          { rotulo: 'Total de leads', valor: relatorio.total, nota: textoComparacao(relatorio.anterior, relatorio.variacao) },
+        ]}
       />
 
       {relatorio.total === 0 ? (
@@ -235,9 +267,7 @@ function ResultadoCaptacao({ relatorio, aoExportar, exportando }) {
       ) : (
         <>
           <div className="flex justify-end mb-3" data-revelar>
-            <Botao variante="fantasma" onClick={aoExportar} carregando={exportando}>
-              {exportando ? 'Exportando…' : 'Exportar CSV'}
-            </Botao>
+            <BotoesExportar aoExportar={aoExportar} aoImprimir={aoImprimir} exportando={exportando} />
           </div>
 
           <div className="grid gap-6 lg:grid-cols-[1fr_1.3fr] items-start">
@@ -258,7 +288,7 @@ function ResultadoCaptacao({ relatorio, aoExportar, exportando }) {
               linhas={relatorio.por_dia.map((linha) => ({
                 chave: linha.data,
                 rotulo: dataBr(linha.data),
-                detalhe: diaDaSemana(linha.data),
+                detalhe: diaSemana(linha.data),
                 mudo: linha.total === 0,
                 total: linha.total,
               }))}
@@ -272,7 +302,9 @@ function ResultadoCaptacao({ relatorio, aoExportar, exportando }) {
   );
 }
 
+/** linhas: [{ chave, rotulo, detalhe?, mudo?, total, percentual? }]; a coluna de % só aparece se houver percentual. */
 function TabelaContagem({ titulo, colunaRotulo, linhas, total, rolagem = false }) {
+  const comPercentual = linhas.some((linha) => linha.percentual !== undefined);
   return (
     <div className="cartao overflow-hidden" data-revelar>
       <div className={rolagem ? 'max-h-[520px] overflow-y-auto' : ''} tabIndex={rolagem ? 0 : undefined} aria-label={rolagem ? titulo : undefined}>
@@ -282,6 +314,7 @@ function TabelaContagem({ titulo, colunaRotulo, linhas, total, rolagem = false }
             <tr className="border-b border-linha text-left">
               <th scope="col" className="etiqueta px-5 py-3 font-medium">{colunaRotulo}</th>
               <th scope="col" className="etiqueta px-5 py-3 font-medium text-right">Leads</th>
+              {comPercentual && <th scope="col" className="etiqueta px-5 py-3 font-medium text-right">Percentual</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-[rgba(233,229,220,0.05)]">
@@ -294,6 +327,9 @@ function TabelaContagem({ titulo, colunaRotulo, linhas, total, rolagem = false }
                 <td className={`px-5 py-2.5 text-right tabular-nums ${linha.mudo ? 'text-osso-mudo' : ''}`}>
                   {linha.total.toLocaleString('pt-BR')}
                 </td>
+                {comPercentual && (
+                  <td className="px-5 py-2.5 text-right tabular-nums text-osso-suave">{pct(linha.percentual)}</td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -301,6 +337,7 @@ function TabelaContagem({ titulo, colunaRotulo, linhas, total, rolagem = false }
             <tr className="border-t border-linha">
               <th scope="row" className="px-5 py-3 text-left etiqueta font-medium">Total</th>
               <td className="px-5 py-3 text-right tabular-nums font-medium">{total.toLocaleString('pt-BR')}</td>
+              {comPercentual && <td />}
             </tr>
           </tfoot>
         </table>
@@ -309,10 +346,25 @@ function TabelaContagem({ titulo, colunaRotulo, linhas, total, rolagem = false }
   );
 }
 
-function ResultadoOrigem({ relatorio, aoExportar, exportando }) {
+function ResultadoOrigem({ relatorio, aoExportar, aoImprimir, exportando }) {
+  const semOrigem = textoSemOrigem(relatorio.sem_origem);
+  // Muitos leads sem origem = rastreamento falhando: o resto da análise fica pouco confiável
+  const alerta = relatorio.sem_origem.percentual !== null && relatorio.sem_origem.percentual >= ALERTA_SEM_ORIGEM;
   return (
     <>
-      <ResumoPeriodo periodo={relatorio.periodo} total={relatorio.total} detalhe="Origem e campanha" />
+      <ResumoPeriodo
+        periodo={relatorio.periodo}
+        detalhe="Origem e campanha"
+        indicadores={[
+          { rotulo: 'Total de leads', valor: relatorio.total, nota: textoComparacao(relatorio.anterior, relatorio.variacao) },
+          {
+            rotulo: 'Leads sem origem informada',
+            valor: semOrigem.valor,
+            tom: alerta ? 'aviso' : undefined,
+            nota: alerta ? `${semOrigem.nota}. Confira se os links das campanhas têm UTM.` : semOrigem.nota,
+          },
+        ]}
+      />
 
       {relatorio.total === 0 ? (
         <SemLeads />
@@ -323,11 +375,35 @@ function ResultadoOrigem({ relatorio, aoExportar, exportando }) {
               Mede o volume de contatos por origem e campanha, não vendas nem conversões. Percentuais
               arredondados em duas casas: a soma pode diferir de 100%.
             </p>
-            <Botao variante="fantasma" onClick={aoExportar} carregando={exportando}>
-              {exportando ? 'Exportando…' : 'Exportar CSV'}
-            </Botao>
+            <BotoesExportar aoExportar={aoExportar} aoImprimir={aoImprimir} exportando={exportando} />
           </div>
           <TabelaOrigem linhas={relatorio.por_origem} total={relatorio.total} />
+          <div className="grid gap-6 lg:grid-cols-2 items-start mt-6">
+            <TabelaContagem
+              titulo="Total por origem"
+              colunaRotulo="Origem"
+              linhas={relatorio.por_fonte.map((linha) => ({
+                chave: linha.origem,
+                rotulo: linha.origem,
+                mudo: linha.origem === NAO_INFORMADO,
+                total: linha.total,
+                percentual: linha.percentual,
+              }))}
+              total={relatorio.total}
+            />
+            <TabelaContagem
+              titulo="Total por meio (utm_medium)"
+              colunaRotulo="Meio"
+              linhas={relatorio.por_meio.map((linha) => ({
+                chave: linha.meio,
+                rotulo: linha.meio,
+                mudo: linha.meio === NAO_INFORMADO,
+                total: linha.total,
+                percentual: linha.percentual,
+              }))}
+              total={relatorio.total}
+            />
+          </div>
         </>
       )}
     </>
@@ -357,7 +433,7 @@ function TabelaOrigem({ linhas, total }) {
                 </th>
                 <td className={`px-5 py-2.5 break-all ${tom(linha.campanha)}`}>{linha.campanha}</td>
                 <td className="px-5 py-2.5 text-right tabular-nums">{linha.total.toLocaleString('pt-BR')}</td>
-                <td className="px-5 py-2.5 text-right tabular-nums text-osso-suave">{percentualBr(linha.percentual)}</td>
+                <td className="px-5 py-2.5 text-right tabular-nums text-osso-suave">{pct(linha.percentual)}</td>
               </tr>
             ))}
           </tbody>
@@ -374,17 +450,27 @@ function TabelaOrigem({ linhas, total }) {
   );
 }
 
-function ResultadoEntregas({ relatorio, aoExportar, exportando }) {
+function ResultadoEntregas({ relatorio, aoExportar, aoImprimir, exportando }) {
   return (
     <>
       <ResumoPeriodo
         periodo={relatorio.periodo}
-        total={relatorio.total}
-        rotuloTotal="Registros de entrega"
         detalhe="CRM e WhatsApp"
-        extras={[
+        indicadores={[
+          { rotulo: 'Registros de entrega', valor: relatorio.total, nota: textoComparacao(relatorio.anterior, relatorio.variacao) },
           { rotulo: 'Sucessos', valor: relatorio.sucessos, tom: 'ok' },
           { rotulo: 'Falhas', valor: relatorio.falhas, tom: 'erro' },
+          {
+            rotulo: 'Taxa de sucesso',
+            valor: relatorio.taxa_sucesso === null ? '—' : pct(relatorio.taxa_sucesso),
+            nota: textoTaxaAnterior(relatorio.anterior),
+          },
+          {
+            rotulo: 'Leads sem entrega concluída',
+            valor: relatorio.leads_sem_entrega,
+            tom: relatorio.leads_sem_entrega > 0 ? 'aviso' : undefined,
+            nota: 'falha sem nenhum sucesso no mesmo canal e destino',
+          },
         ]}
       />
 
@@ -400,11 +486,10 @@ function ResultadoEntregas({ relatorio, aoExportar, exportando }) {
               Cada registro de entrega conta uma vez: não são leads nem mensagens únicas, e um mesmo lead pode aparecer em
               vários grupos.
             </p>
-            <Botao variante="fantasma" onClick={aoExportar} carregando={exportando}>
-              {exportando ? 'Exportando…' : 'Exportar CSV'}
-            </Botao>
+            <BotoesExportar aoExportar={aoExportar} aoImprimir={aoImprimir} exportando={exportando} />
           </div>
           <TabelaEntregas grupos={relatorio.por_grupo} relatorio={relatorio} />
+          {relatorio.por_motivo.length > 0 && <TabelaMotivos motivos={relatorio.por_motivo} falhas={relatorio.falhas} />}
         </>
       )}
     </>
@@ -425,6 +510,7 @@ function TabelaEntregas({ grupos, relatorio }) {
               <th scope="col" className="etiqueta px-5 py-3 font-medium text-right">Sucessos</th>
               <th scope="col" className="etiqueta px-5 py-3 font-medium text-right">Falhas</th>
               <th scope="col" className="etiqueta px-5 py-3 font-medium text-right">Total</th>
+              <th scope="col" className="etiqueta px-5 py-3 font-medium text-right">Taxa</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[rgba(233,229,220,0.05)]">
@@ -439,6 +525,7 @@ function TabelaEntregas({ grupos, relatorio }) {
                   {numero(grupo.falhas)}
                 </td>
                 <td className="px-5 py-2.5 text-right tabular-nums">{numero(grupo.total)}</td>
+                <td className="px-5 py-2.5 text-right tabular-nums text-osso-suave">{pct(grupo.taxa_sucesso)}</td>
               </tr>
             ))}
           </tbody>
@@ -448,10 +535,48 @@ function TabelaEntregas({ grupos, relatorio }) {
               <td className="px-5 py-3 text-right tabular-nums font-medium">{numero(relatorio.sucessos)}</td>
               <td className="px-5 py-3 text-right tabular-nums font-medium">{numero(relatorio.falhas)}</td>
               <td className="px-5 py-3 text-right tabular-nums font-medium">{numero(relatorio.total)}</td>
+              <td className="px-5 py-3 text-right tabular-nums font-medium">
+                {relatorio.taxa_sucesso === null ? '' : pct(relatorio.taxa_sucesso)}
+              </td>
             </tr>
           </tfoot>
         </table>
       </div>
+    </div>
+  );
+}
+
+/** Falhas por canal e código HTTP já gravado; nunca a mensagem de erro. */
+function TabelaMotivos({ motivos, falhas }) {
+  return (
+    <div className="cartao overflow-hidden mt-6" data-revelar>
+      <table className="w-full text-sm">
+        <caption className="text-left px-5 pt-4 pb-2 etiqueta">Falhas por código de resposta</caption>
+        <thead>
+          <tr className="border-b border-linha text-left">
+            <th scope="col" className="etiqueta px-5 py-3 font-medium">Canal</th>
+            <th scope="col" className="etiqueta px-5 py-3 font-medium">Código</th>
+            <th scope="col" className="etiqueta px-5 py-3 font-medium text-right">Falhas</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[rgba(233,229,220,0.05)]">
+          {motivos.map((motivo) => (
+            <tr key={JSON.stringify([motivo.canal, motivo.codigo_http])}>
+              <th scope="row" className="px-5 py-2.5 text-left font-normal text-osso-suave">{motivo.canal_rotulo}</th>
+              <td className={`px-5 py-2.5 ${motivo.codigo_http === null ? 'text-osso-mudo' : 'text-osso-suave'}`}>
+                {motivo.codigo_http ?? 'Sem código'}
+              </td>
+              <td className="px-5 py-2.5 text-right tabular-nums text-estado-erro">{motivo.falhas.toLocaleString('pt-BR')}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t border-linha">
+            <th scope="row" colSpan={2} className="px-5 py-3 text-left etiqueta font-medium">Total</th>
+            <td className="px-5 py-3 text-right tabular-nums font-medium">{falhas.toLocaleString('pt-BR')}</td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }
