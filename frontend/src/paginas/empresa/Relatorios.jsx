@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, baixarArquivo, sessao } from '../../lib/api.js';
 import {
-  TITULOS, dataBr, diaSemana, imprimirRelatorio, pct, textoComparacao, textoSemOrigem, textoTaxaAnterior,
+  TITULOS, dataBr, diaSemana, imprimirRelatorio, pct, textoComparacao, textoSemEntrega, textoSemOrigem, textoTaxaAnterior,
 } from '../../lib/imprimirRelatorio.js';
 import { Botao, CabecalhoPagina, Campo, Carregando, EstadoVazio, Selecao, avisar } from '../../componentes/ui.jsx';
 import { useRevelar } from '../../lib/animacoes.js';
@@ -469,7 +469,7 @@ function ResultadoEntregas({ relatorio, aoExportar, aoImprimir, exportando }) {
             rotulo: 'Leads sem entrega concluída',
             valor: relatorio.leads_sem_entrega,
             tom: relatorio.leads_sem_entrega > 0 ? 'aviso' : undefined,
-            nota: 'falha sem nenhum sucesso no mesmo canal e destino',
+            nota: textoSemEntrega(relatorio.leads_sem_entrega_por_canal),
           },
         ]}
       />

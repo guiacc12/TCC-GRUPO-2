@@ -39,6 +39,12 @@ rotasCaptura.use(
     standardHeaders: true,
     legacyHeaders: false,
     message: { sucesso: false, erro: 'Muitas requisições — tente novamente em instantes' },
+    // O limite roda antes do CORS do tenant; sem este cabeçalho o navegador esconde o 429
+    // e o formulário não consegue mostrar a mensagem. O corpo não tem dado sensível.
+    handler: (req, res, _next, opcoes) => {
+      if (req.headers.origin) res.set({ 'Access-Control-Allow-Origin': req.headers.origin, Vary: 'Origin' });
+      res.status(opcoes.statusCode).json(opcoes.message);
+    },
   })
 );
 

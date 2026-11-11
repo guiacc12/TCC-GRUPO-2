@@ -1,5 +1,8 @@
 import { env } from '../config/env.js';
 import { requisicaoComRetry } from '../util/http.js';
+import { ErroHttp, erroExterno } from '../middlewares/erros.js';
+
+const SERVICO = 'servidor do WhatsApp';
 
 /**
  * Orquestrador da Evolution API v2.
@@ -9,7 +12,8 @@ import { requisicaoComRetry } from '../util/http.js';
  */
 async function chamarEvolution(caminho, { metodo = 'GET', corpo } = {}) {
   if (!env.evolution.baseUrl || !env.evolution.apiKey) {
-    const erro = new Error('Evolution API não configurada (EVOLUTION_BASE_URL / EVOLUTION_API_KEY)');
+    const erro = new ErroHttp(503, 'WhatsApp não configurado no servidor. Contate o suporte');
+    erro.tecnico = 'Evolution API não configurada (EVOLUTION_BASE_URL / EVOLUTION_API_KEY)';
     erro.permanente = true;
     throw erro;
   }
@@ -17,15 +21,13 @@ async function chamarEvolution(caminho, { metodo = 'GET', corpo } = {}) {
     method: metodo,
     headers: { apikey: env.evolution.apiKey, 'Content-Type': 'application/json' },
     ...(corpo && { body: JSON.stringify(corpo) }),
-  });
+  }).catch((falha) => { throw erroExterno(SERVICO, 0, `Evolution: ${falha.message}`); });
   const corpoResposta = await resposta.json().catch(() => ({}));
   if (!resposta.ok) {
     const mensagem = Array.isArray(corpoResposta.response?.message)
       ? corpoResposta.response.message.join('; ')
       : corpoResposta.error || `HTTP ${resposta.status}`;
-    const erro = new Error(`Evolution: ${mensagem}`);
-    erro.codigoHttp = resposta.status;
-    throw erro;
+    throw erroExterno(SERVICO, resposta.status, `Evolution: ${mensagem}`);
   }
   return corpoResposta;
 }

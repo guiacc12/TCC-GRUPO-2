@@ -3,9 +3,12 @@ import { z } from 'zod';
 import { banco, emTransacao } from '../config/banco.js';
 import { cifrar, decifrarJson } from '../util/criptografia.js';
 import { obterAdapterCrm } from '../servicos/crm/index.js';
-import { ErroHttp } from '../middlewares/erros.js';
+import { ErroHttp, erroExterno } from '../middlewares/erros.js';
 
 export const rotasCrm = Router();
+
+// Sem limite, um CRM lento deixaria a requisição do painel pendurada
+const TEMPO_LIMITE_CRM_MS = 15000;
 
 // ---------------------------------------------------------------------------
 // Validação: CRM primário
@@ -256,18 +259,19 @@ rotasCrm.post('/pipedrive/dados', async (req, res, next) => {
   try {
     const { api_token, company_domain } = z.object({
       api_token: z.string().min(10),
-      company_domain: z.string().min(2),
+      company_domain: z.string().min(2).regex(/^[a-z0-9-]+$/, 'apenas o subdomínio, ex.: minhaempresa'),
     }).parse(req.body);
 
     const base = `https://${company_domain}.pipedrive.com`;
     const headers = { 'x-api-token': api_token };
 
     async function buscar(caminho) {
-      const resp = await fetch(`${base}${caminho}`, { headers });
+      const resp = await fetch(`${base}${caminho}`, { headers, signal: AbortSignal.timeout(TEMPO_LIMITE_CRM_MS) })
+        .catch((falha) => { throw erroExterno('Pipedrive', 0, `Pipedrive: ${falha.message}`); });
       const corpo = await resp.json().catch(() => ({}));
       if (!resp.ok || corpo.success !== true) {
-        throw new ErroHttp(502, corpo.error || `Pipedrive HTTP ${resp.status}`);
-      }2
+        throw erroExterno('Pipedrive', resp.status, `Pipedrive: ${corpo.error || `HTTP ${resp.status}`}`);
+      }
       return corpo.data || [];
     }
 
@@ -296,10 +300,11 @@ rotasCrm.post('/piperun/dados', async (req, res, next) => {
     const headers = { token, 'Content-Type': 'application/json' };
 
     async function buscar(caminho) {
-      const resp = await fetch(`https://api.pipe.run/v1${caminho}`, { headers });
+      const resp = await fetch(`https://api.pipe.run/v1${caminho}`, { headers, signal: AbortSignal.timeout(TEMPO_LIMITE_CRM_MS) })
+        .catch((falha) => { throw erroExterno('PipeRun', 0, `PipeRun: ${falha.message}`); });
       const corpo = await resp.json().catch(() => ({}));
       if (!resp.ok || corpo.success === false) {
-        throw new ErroHttp(502, corpo.message || `PipeRun HTTP ${resp.status}`);
+        throw erroExterno('PipeRun', resp.status, `PipeRun: ${corpo.message || `HTTP ${resp.status}`} (${caminho})`);
       }
       return corpo.data || [];
     }
@@ -336,11 +341,12 @@ rotasCrm.post('/leadpass/dados', async (req, res, next) => {
     };
 
     async function buscar(caminho) {
-      const resp = await fetch(`https://services.leadconnectorhq.com${caminho}`, { headers });
+      const resp = await fetch(`https://services.leadconnectorhq.com${caminho}`, { headers, signal: AbortSignal.timeout(TEMPO_LIMITE_CRM_MS) })
+        .catch((falha) => { throw erroExterno('LeadPass', 0, `LeadPass: ${falha.message}`); });
       const corpo = await resp.json().catch(() => ({}));
       if (!resp.ok) {
         const msg = corpo.message || corpo.error || JSON.stringify(corpo).slice(0, 200);
-        throw new ErroHttp(502, `LeadPass HTTP ${resp.status} ${caminho}: ${msg}`);
+        throw erroExterno('LeadPass', resp.status, `LeadPass HTTP ${resp.status} ${caminho}: ${msg}`);
       }
       return corpo;
     }
@@ -499,12 +505,14 @@ rotasCrm.get('/leadpass/tags', async (req, res, next) => {
     };
 
     // GHL: GET /locations/{id}/tags
-    const resp = await fetch(`https://services.leadconnectorhq.com/locations/${location_id}/tags`, { headers });
-    const corpo = await resp.json().catch(() => ({}));
-
-    if (!resp.ok) {
+    // Tags são opcionais no formulário: falha de rede ou do LeadPass vira lista vazia, não erro
+    const resp = await fetch(`https://services.leadconnectorhq.com/locations/${location_id}/tags`, {
+      headers, signal: AbortSignal.timeout(TEMPO_LIMITE_CRM_MS),
+    }).catch(() => null);
+    if (!resp?.ok) {
       return res.json({ sucesso: true, tags: [] });
     }
+    const corpo = await resp.json().catch(() => ({}));
 
     const tagsRaw = corpo.tags || [];
     const tags = tagsRaw.map((t) => ({ id: t.id || t.name, nome: t.name || t.id }));

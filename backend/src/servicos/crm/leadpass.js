@@ -1,5 +1,6 @@
 import { requisicaoComRetry } from '../../util/http.js';
 import { logger } from '../../util/logger.js';
+import { erroExterno } from '../../middlewares/erros.js';
 
 /**
  * Adapter LeadPass — white-label do GoHighLevel (GHL API v2).
@@ -45,13 +46,12 @@ export function criarLeadPassAdapter({ credenciais, config = {} }) {
   };
 
   async function chamar(caminho, opcoes = {}) {
-    const resposta = await requisicaoComRetry(`${BASE}${caminho}`, { headers, ...opcoes });
+    const resposta = await requisicaoComRetry(`${BASE}${caminho}`, { headers, ...opcoes })
+      .catch((falha) => { throw erroExterno('LeadPass', 0, `LeadPass: ${falha.message}`); });
     const corpo = await resposta.json().catch(() => ({}));
     if (!resposta.ok) {
       const detalhe = corpo.message || corpo.error || JSON.stringify(corpo).slice(0, 300);
-      const erro = new Error(`LeadPass: ${detalhe} (HTTP ${resposta.status} ${caminho})`);
-      erro.codigoHttp = resposta.status;
-      throw erro;
+      throw erroExterno('LeadPass', resposta.status, `LeadPass: ${detalhe} (HTTP ${resposta.status} ${caminho})`);
     }
     return corpo;
   }
@@ -162,7 +162,9 @@ export function criarLeadPassAdapter({ credenciais, config = {} }) {
           method: 'POST',
           body: JSON.stringify(payloadOportunidade),
         }).catch((erro) => {
-          throw new Error(`LeadPass contato criado (${contatoId}), mas oportunidade falhou: ${erro.message}`);
+          // Mantém o mesmo erro (codigoHttp e texto técnico) e só acrescenta o contexto
+          erro.message = `LeadPass: contato criado (${contatoId}), mas a oportunidade falhou. ${erro.message}`;
+          throw erro;
         });
       }
 

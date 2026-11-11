@@ -1,5 +1,6 @@
 import { requisicaoComRetry } from '../../util/http.js';
 import { logger } from '../../util/logger.js';
+import { erroExterno } from '../../middlewares/erros.js';
 
 /**
  * Adapter Pipedrive.
@@ -17,13 +18,12 @@ export function criarPipedriveAdapter({ credenciais, config }) {
   const headers = { 'x-api-token': credenciais.api_token, 'Content-Type': 'application/json' };
 
   async function chamar(caminho, opcoes = {}) {
-    const resposta = await requisicaoComRetry(`${base}${caminho}`, { headers, ...opcoes });
+    const resposta = await requisicaoComRetry(`${base}${caminho}`, { headers, ...opcoes })
+      .catch((falha) => { throw erroExterno('Pipedrive', 0, `Pipedrive: ${falha.message}`); });
     const corpo = await resposta.json().catch(() => ({}));
     if (!resposta.ok || corpo.success !== true) {
       const detalhe = corpo.error || `HTTP ${resposta.status}`;
-      const erro = new Error(`Pipedrive: ${detalhe}`);
-      erro.codigoHttp = resposta.status;
-      throw erro;
+      throw erroExterno('Pipedrive', resposta.status, `Pipedrive: ${detalhe}`);
     }
     return corpo;
   }

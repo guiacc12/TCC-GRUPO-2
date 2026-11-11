@@ -32,7 +32,11 @@ export function textoComparacao({ periodo, total }, variacao) {
 export const textoTaxaAnterior = ({ taxa_sucesso: taxa }) =>
   `Período anterior: ${taxa === null ? 'sem registros' : pct(taxa)}`;
 
-export const textoSemOrigem = ({ total, percentual }) => ({
+/** Nota do indicador "Leads sem entrega concluída": o total mistura canais, então mostra o detalhe. */
+export const textoSemEntrega = (porCanal) =>
+  `falha sem nenhum sucesso no mesmo canal${porCanal.length ? ` (${porCanal.map((c) => `${c.canal_rotulo}: ${num(c.leads)}`).join(' · ')})` : ''}`;
+
+export const textoSemOrigem =({ total, percentual }) => ({
   valor: percentual === null ? '—' : pct(percentual),
   nota: `${num(total)} lead${total === 1 ? '' : 's'} sem utm_source`,
 });
@@ -154,7 +158,7 @@ const CORPOS = {
         ['Sucessos', num(r.sucessos)],
         ['Falhas', num(r.falhas)],
         ['Taxa de sucesso', r.taxa_sucesso === null ? '—' : pct(r.taxa_sucesso), textoTaxaAnterior(r.anterior)],
-        ['Leads sem entrega concluída', num(r.leads_sem_entrega), 'falha sem nenhum sucesso no mesmo canal e destino'],
+        ['Leads sem entrega concluída', num(r.leads_sem_entrega), textoSemEntrega(r.leads_sem_entrega_por_canal)],
       ]) +
       (r.total === 0
         ? vazio('Não há registros de entrega no período', 'Nenhuma tentativa de entrega ao CRM ou ao WhatsApp foi registrada entre as datas selecionadas.')

@@ -1,5 +1,6 @@
 import { requisicaoComRetry } from '../../util/http.js';
 import { logger } from '../../util/logger.js';
+import { erroExterno } from '../../middlewares/erros.js';
 
 /**
  * Adapter PipeRun.
@@ -23,13 +24,12 @@ export function criarPipeRunAdapter({ credenciais, config = {} }) {
   const headers = { token: credenciais.token, 'Content-Type': 'application/json' };
 
   async function chamar(caminho, opcoes = {}) {
-    const resposta = await requisicaoComRetry(`${BASE}${caminho}`, { headers, ...opcoes });
+    const resposta = await requisicaoComRetry(`${BASE}${caminho}`, { headers, ...opcoes })
+      .catch((falha) => { throw erroExterno('PipeRun', 0, `PipeRun: ${falha.message}`); });
     const corpo = await resposta.json().catch(() => ({}));
     if (!resposta.ok || corpo.success === false) {
       const detalhe = JSON.stringify(corpo).slice(0, 800);
-      const erro = new Error(`PipeRun: ${detalhe} (HTTP ${resposta.status} ${caminho})`);
-      erro.codigoHttp = resposta.status;
-      throw erro;
+      throw erroExterno('PipeRun', resposta.status, `PipeRun: ${detalhe} (HTTP ${resposta.status} ${caminho})`);
     }
     return corpo;
   }

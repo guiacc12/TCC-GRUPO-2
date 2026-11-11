@@ -23,28 +23,57 @@ export class ErroApi extends Error {
   }
 }
 
-/** Chama a API; em 401 derruba a sessão e manda para o login do perfil. */
-export async function api(caminho, { metodo = 'GET', corpo, perfil = 'empresa' } = {}) {
-  const token = sessao.obter(perfil)?.token;
-  const resposta = await fetch(`${BASE}${caminho}`, {
-    method: metodo,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-    },
-    ...(corpo !== undefined && { body: JSON.stringify(corpo) }),
-  });
-  const dados = await resposta.json().catch(() => ({}));
+// Usadas quando a resposta não traz a mensagem da API (ex.: página de erro do proxy)
+const MENSAGENS_POR_STATUS = {
+  404: 'Recurso não encontrado',
+  413: 'Dados grandes demais',
+  429: 'Muitas tentativas. Aguarde um instante e tente de novo.',
+  500: 'Erro no servidor. Tente novamente.',
+  502: 'Servidor indisponível no momento. Tente novamente em instantes.',
+  503: 'Servidor indisponível no momento. Tente novamente em instantes.',
+  504: 'Servidor indisponível no momento. Tente novamente em instantes.',
+};
 
+/** fetch autenticado; falha de rede vira mensagem em português e 401 derruba a sessão. */
+async function requisitar(caminho, perfil, opcoes = {}) {
+  const token = sessao.obter(perfil)?.token;
+  let resposta;
+  try {
+    resposta = await fetch(`${BASE}${caminho}`, {
+      ...opcoes,
+      headers: { ...opcoes.headers, ...(token && { Authorization: `Bearer ${token}` }) },
+    });
+  } catch {
+    throw new ErroApi(0, 'Sem conexão com o servidor. Verifique sua internet e tente de novo.');
+  }
   if (resposta.status === 401 && token) {
     sessao.limpar(perfil);
     window.location.href = perfil === 'admin' ? '/admin/login' : '/login';
     throw new ErroApi(401, 'Sessão expirada');
   }
-  if (!resposta.ok || dados.sucesso === false) {
-    const detalhe = dados.detalhes?.map((d) => `${d.campo}: ${d.mensagem}`).join('; ');
-    throw new ErroApi(resposta.status, detalhe || dados.erro || `Erro ${resposta.status}`, dados.detalhes);
-  }
+  return resposta;
+}
+
+/** "credenciais.api_token" → "api token": o usuário não precisa ver o caminho técnico do campo. */
+const rotuloDoCampo = (campo) => campo.split('.').pop().replaceAll('_', ' ');
+
+function erroDaResposta(status, dados) {
+  const detalhe = dados.detalhes
+    ?.map((d) => (d.campo ? `${rotuloDoCampo(d.campo)}: ${d.mensagem}` : d.mensagem))
+    .join('; ');
+  const mensagem = detalhe || dados.erro || MENSAGENS_POR_STATUS[status] || `Não foi possível concluir (erro ${status})`;
+  return new ErroApi(status, mensagem, dados.detalhes);
+}
+
+/** Chama a API; em 401 derruba a sessão e manda para o login do perfil. */
+export async function api(caminho, { metodo = 'GET', corpo, perfil = 'empresa' } = {}) {
+  const resposta = await requisitar(caminho, perfil, {
+    method: metodo,
+    headers: { 'Content-Type': 'application/json' },
+    ...(corpo !== undefined && { body: JSON.stringify(corpo) }),
+  });
+  const dados = await resposta.json().catch(() => ({}));
+  if (!resposta.ok || dados.sucesso === false) throw erroDaResposta(resposta.status, dados);
   return dados;
 }
 
@@ -53,21 +82,8 @@ export async function api(caminho, { metodo = 'GET', corpo, perfil = 'empresa' }
  * Bearer token, então buscamos com fetch e disparamos o download a partir do Blob.
  */
 export async function baixarArquivo(caminho, nomePadrao, { perfil = 'empresa' } = {}) {
-  const token = sessao.obter(perfil)?.token;
-  const resposta = await fetch(`${BASE}${caminho}`, {
-    headers: { ...(token && { Authorization: `Bearer ${token}` }) },
-  });
-
-  if (resposta.status === 401 && token) {
-    sessao.limpar(perfil);
-    window.location.href = perfil === 'admin' ? '/admin/login' : '/login';
-    throw new ErroApi(401, 'Sessão expirada');
-  }
-  if (!resposta.ok) {
-    const dados = await resposta.json().catch(() => ({}));
-    const detalhe = dados.detalhes?.map((d) => `${d.campo}: ${d.mensagem}`).join('; ');
-    throw new ErroApi(resposta.status, detalhe || dados.erro || `Erro ${resposta.status}`, dados.detalhes);
-  }
+  const resposta = await requisitar(caminho, perfil);
+  if (!resposta.ok) throw erroDaResposta(resposta.status, await resposta.json().catch(() => ({})));
 
   const nome = /filename="([^"]+)"/.exec(resposta.headers.get('Content-Disposition') || '')?.[1] || nomePadrao;
   const url = URL.createObjectURL(await resposta.blob());

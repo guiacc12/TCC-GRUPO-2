@@ -190,7 +190,7 @@ async function processarRotearCrm(job) {
         codigoHttp: erroLeadPass.codigoHttp ?? null,
         detalhe: `Erro backup LeadPass: ${erroLeadPass.message}`.slice(0, 2000),
       }).catch(() => {});
-      logger.aviso('leadpass falhou (não reprocessa)', { lead_id: lead.id, erro: erroLeadPass.message });
+      logger.aviso('leadpass falhou (não reprocessa)', { lead_id: lead.id, erro: erroLeadPass.tecnico || erroLeadPass.message });
     }
   }
 
@@ -268,7 +268,7 @@ async function tratarFalha(job, erro) {
   if (esgotou) {
     await banco.query(
       "UPDATE lead_jobs SET status = 'erro', tentativas = ?, ultimo_erro = ? WHERE id = ?",
-      [tentativas, erro.message.slice(0, 2000), job.id]
+      [tentativas, (erro.tecnico || erro.message).slice(0, 2000), job.id]
     );
     // Falha definitiva no roteamento de CRM marca o lead para triagem no painel
     if (job.tipo === 'rotear_crm') {
@@ -280,7 +280,7 @@ async function tratarFalha(job, erro) {
       `UPDATE lead_jobs SET status = 'pendente', tentativas = ?, ultimo_erro = ?,
               proxima_tentativa_em = DATE_ADD(NOW(), INTERVAL ? SECOND)
        WHERE id = ?`,
-      [tentativas, erro.message.slice(0, 2000), esperaSegundos, job.id]
+      [tentativas, (erro.tecnico || erro.message).slice(0, 2000), esperaSegundos, job.id]
     );
   }
 
@@ -291,7 +291,7 @@ async function tratarFalha(job, erro) {
     detalhe: `${erro.message}${esgotou ? ' (desistiu)' : ` (tentativa ${tentativas}/${job.max_tentativas})`}`,
   }).catch(() => {});
 
-  logger.aviso('job falhou', { job_id: job.id, tipo: job.tipo, tentativas, esgotou, erro: erro.message });
+  logger.aviso('job falhou', { job_id: job.id, tipo: job.tipo, tentativas, esgotou, erro: erro.tecnico || erro.message });
 }
 
 async function reivindicarJobs(quantidade) {
@@ -300,7 +300,7 @@ async function reivindicarJobs(quantidade) {
       `SELECT * FROM lead_jobs
        WHERE status = 'pendente' AND proxima_tentativa_em <= NOW()
        ORDER BY proxima_tentativa_em LIMIT ?
-       FOR UPDATE SKIP LOCKED`,
+       FOR UPDATE`,
       [quantidade]
     );
     if (jobs.length > 0) {

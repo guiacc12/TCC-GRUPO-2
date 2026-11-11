@@ -225,7 +225,7 @@ async function gerarEntregas(empresaId, { de, ate }) {
   const periodo = 'l.empresa_id = ? AND l.criado_em >= FROM_UNIXTIME(?) AND l.criado_em < FROM_UNIXTIME(?)';
   const parametros = [empresaId, inicio, fim];
 
-  const { grupos, motivos, semEntrega } = await emTransacao(async (conexao) => {
+  const { grupos, motivos, semEntrega, semEntregaPorCanal } = await emTransacao(async (conexao) => {
     // Apelidos "grupo_*" para não colidirem com as colunas canal/destino/sucesso da tabela
     // (GROUP BY prefere a coluna ao apelido). O destino é agrupado em collation binária:
     // reflete exatamente o valor armazenado, sem juntar "Pipedrive" com "pipedrive".
@@ -247,20 +247,28 @@ async function gerarEntregas(empresaId, { de, ate }) {
        GROUP BY grupo_canal, grupo_codigo ORDER BY falhas DESC, grupo_canal, grupo_codigo`,
       parametros
     );
-    // Leads com falha no período e NENHUM sucesso (em qualquer data) no mesmo canal e destino:
-    // uma tentativa que falhou e depois deu certo não conta, e uma nova tentativa que falhou
-    // outra vez não conta duas vezes (DISTINCT). Este é o número de leads, não de registros.
-    const [[{ leads }]] = await conexao.query(
-      `SELECT COUNT(DISTINCT l.lead_id) AS leads
-       FROM logs_entrega l
-       WHERE ${periodo} AND l.sucesso = 0
+    // Leads com falha no período e NENHUM sucesso (em qualquer data) no mesmo canal: uma
+    // tentativa que falhou e depois deu certo não conta, e uma nova tentativa que falhou outra
+    // vez não conta duas vezes (DISTINCT). É número de leads, não de registros.
+    // Compara só o canal, não o destino: o worker grava a falha com o tipo do job como destino
+    // ("rotear_crm", "enviar_whatsapp") e o sucesso com o CRM ou a instância; comparar o
+    // destino nunca casaria e todo lead que já falhou apareceria como pendente.
+    const semSucesso = `${periodo} AND l.sucesso = 0
          AND NOT EXISTS (
            SELECT 1 FROM logs_entrega s
-           WHERE s.empresa_id = l.empresa_id AND s.lead_id = l.lead_id AND s.canal = l.canal
-             AND s.destino = l.destino COLLATE utf8mb4_bin AND s.sucesso <> 0)`,
+           WHERE s.empresa_id = l.empresa_id AND s.lead_id = l.lead_id AND s.canal = l.canal AND s.sucesso <> 0)`;
+    const [[{ leads }]] = await conexao.query(
+      `SELECT COUNT(DISTINCT l.lead_id) AS leads FROM logs_entrega l WHERE ${semSucesso}`,
       parametros
     );
-    return { grupos: g, motivos: m, semEntrega: Number(leads) };
+    // Um lead pode estar pendente em mais de um canal: o total acima não é a soma desta lista
+    const [porCanal] = await conexao.query(
+      `SELECT l.canal AS grupo_canal, COUNT(DISTINCT l.lead_id) AS leads
+       FROM logs_entrega l WHERE ${semSucesso}
+       GROUP BY grupo_canal ORDER BY leads DESC, grupo_canal`,
+      parametros
+    );
+    return { grupos: g, motivos: m, semEntrega: Number(leads), semEntregaPorCanal: porCanal };
   });
 
   const por_grupo = grupos.map((linha) => {
@@ -285,6 +293,11 @@ async function gerarEntregas(empresaId, { de, ate }) {
     falhas: soma('falhas'),
     taxa_sucesso: razaoPercentual(soma('sucessos'), soma('total')),
     leads_sem_entrega: semEntrega,
+    leads_sem_entrega_por_canal: semEntregaPorCanal.map((linha) => ({
+      canal: linha.grupo_canal,
+      canal_rotulo: ROTULOS_CANAL[linha.grupo_canal] ?? linha.grupo_canal,
+      leads: Number(linha.leads),
+    })),
     por_grupo,
     por_motivo: motivos.map((linha) => ({
       canal: linha.grupo_canal,
@@ -400,6 +413,7 @@ function csvEntregas(relatorio) {
     ['Falhas', relatorio.falhas],
     ['Taxa de sucesso', pctBr(relatorio.taxa_sucesso)],
     ['Leads sem entrega concluída', relatorio.leads_sem_entrega],
+    ...relatorio.leads_sem_entrega_por_canal.map((c) => [`Leads sem entrega concluída (${c.canal_rotulo})`, c.leads]),
     ...linhasComparacao(relatorio),
     ['Taxa de sucesso no período anterior', pctBr(relatorio.anterior.taxa_sucesso)],
     [],

@@ -18,9 +18,12 @@ export const app = express();
 // Railway roda atrás de proxy — necessário para req.ip e rate limit corretos
 app.set('trust proxy', 1);
 app.use(helmet());
+// CORS fixo do painel (frontend no Vercel) — o CORS da captura é dinâmico, por tenant.
+// Registrado antes do express.json: erro de leitura do corpo também precisa sair com CORS,
+// senão o navegador esconde a resposta e o painel só enxerga "falha de rede".
+app.use(['/api/auth', '/api/admin', '/api/empresa'], corsDoPainel);
 app.use(express.json({ limit: '100kb' }));
 
-// CORS fixo do painel (frontend no Vercel) — o CORS da captura é dinâmico, por tenant
 function corsDoPainel(req, res, next) {
   res.set({
     'Access-Control-Allow-Origin': env.painelOrigin,
@@ -39,13 +42,13 @@ app.get('/api/saude', (req, res) => res.json({ sucesso: true, servico: 'saas-lea
 app.use('/api/captura', rotasCaptura);
 
 // Autenticação dos painéis
-app.use('/api/auth', corsDoPainel, rotasAuth);
+app.use('/api/auth', rotasAuth);
 
 // Painel do Super Admin
-app.use('/api/admin', corsDoPainel, rotasAdmin);
+app.use('/api/admin', rotasAdmin);
 
 // Painel da empresa — tudo abaixo exige JWT de empresa; empresa_id sai do token
-app.use('/api/empresa', corsDoPainel, autenticarEmpresa);
+app.use('/api/empresa', autenticarEmpresa);
 app.use('/api/empresa/formularios', rotasFormularios);
 app.use('/api/empresa/dominios', rotasDominios);
 app.use('/api/empresa/leads', rotasLeads);
