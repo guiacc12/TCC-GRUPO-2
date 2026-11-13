@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api.js';
 import {
-  Badge, Botao, CabecalhoPagina, Campo, Carregando, EstadoVazio, Modal, avisar, formatarData,
+  Badge, BlocoCodigo, Botao, CabecalhoPagina, Campo, Carregando, EstadoVazio, Modal, avisar, formatarData,
 } from '../../componentes/ui.jsx';
 import { useRevelar } from '../../lib/animacoes.js';
 
@@ -11,6 +11,7 @@ export default function Empresas() {
   const [empresas, setEmpresas] = useState(null);
   const [modalAberto, setModalAberto] = useState(false);
   const [empresaEdicao, setEmpresaEdicao] = useState(null);
+  const [empresaSenha, setEmpresaSenha] = useState(null);
   const ref = useRevelar([empresas !== null]);
 
   async function carregar() {
@@ -78,6 +79,7 @@ export default function Empresas() {
 
               <div className="flex gap-2">
                 <Botao variante="fantasma" onClick={() => setEmpresaEdicao(empresa)}>Editar</Botao>
+                <Botao variante="fantasma" onClick={() => setEmpresaSenha(empresa)}>Recuperar senha</Botao>
                 {empresa.status === 'ativa' ? (
                   <Botao variante="perigo" onClick={() => mudarStatus(empresa, 'suspensa')}>Suspender</Botao>
                 ) : (
@@ -108,7 +110,92 @@ export default function Empresas() {
           }}
         />
       )}
+      {empresaSenha && (
+        <ModalRecuperarSenha key={empresaSenha.id} empresa={empresaSenha} aoFechar={() => setEmpresaSenha(null)} />
+      )}
     </div>
+  );
+}
+
+function ModalRecuperarSenha({ empresa, aoFechar }) {
+  const [usuarios, setUsuarios] = useState(null);
+  const [gerandoId, setGerandoId] = useState(null);
+  const [gerada, setGerada] = useState(null);
+
+  useEffect(() => {
+    api(`/api/admin/empresas/${empresa.id}/usuarios`, { perfil: 'admin' })
+      .then((dados) => setUsuarios(dados.usuarios))
+      .catch((erro) => {
+        avisar(erro.message, 'erro');
+        aoFechar();
+      });
+  }, [empresa.id]);
+
+  async function gerar(usuario) {
+    if (!window.confirm(`Gerar uma senha temporária para ${usuario.nome}? A senha atual deixa de funcionar na hora.`)) return;
+    setGerandoId(usuario.id);
+    try {
+      const dados = await api(`/api/admin/usuarios/${usuario.id}/redefinir-senha`, { metodo: 'POST', perfil: 'admin' });
+      setGerada({ usuario, senha: dados.senha_temporaria });
+    } catch (erro) {
+      avisar(erro.message, 'erro');
+    } finally {
+      setGerandoId(null);
+    }
+  }
+
+  const fechar = () => { if (gerandoId === null) aoFechar(); };
+
+  return (
+    <Modal aberto titulo="Recuperar senha" aoFechar={fechar}>
+      {gerada ? (
+        <div className="space-y-4">
+          <p className="text-sm text-osso-suave">
+            Envie esta senha para <span className="text-osso">{gerada.usuario.nome}</span>{' '}
+            (<span className="break-all">{gerada.usuario.email}</span>). No próximo acesso, será obrigatório definir uma senha nova.
+          </p>
+          <BlocoCodigo rotulo="Senha temporária" codigo={gerada.senha} />
+          <p className="text-xs text-estado-aviso">Ela não será exibida de novo. Copie antes de fechar.</p>
+          <div className="flex justify-end pt-2">
+            <Botao onClick={aoFechar}>Concluir</Botao>
+          </div>
+        </div>
+      ) : !usuarios ? (
+        <Carregando />
+      ) : usuarios.length === 0 ? (
+        <p className="text-sm text-osso-mudo">{empresa.nome} não tem usuários cadastrados.</p>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-sm text-osso-mudo">
+            Escolha a conta de <span className="text-osso-suave">{empresa.nome}</span>. Será gerada uma senha aleatória para você repassar ao dono.
+          </p>
+          <ul className="space-y-2">
+            {usuarios.map((usuario) => (
+              <li key={usuario.id} className="cartao p-4 flex flex-wrap items-center gap-3">
+                <div className="flex-1 min-w-40">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-osso">{usuario.nome}</span>
+                    <Badge tom={usuario.papel === 'proprietario' ? 'info' : 'neutro'}>{usuario.papel}</Badge>
+                    {Boolean(usuario.deve_trocar_senha) && <Badge tom="aviso">aguardando troca</Badge>}
+                    {!usuario.ativo && <Badge tom="erro">inativo</Badge>}
+                  </div>
+                  <p className="text-xs text-osso-mudo mt-1 break-all">{usuario.email}</p>
+                  <p className="text-xs text-osso-mudo">Último acesso: {formatarData(usuario.ultimo_login_em)}</p>
+                </div>
+                <Botao
+                  variante="fantasma"
+                  onClick={() => gerar(usuario)}
+                  carregando={gerandoId === usuario.id}
+                  disabled={gerandoId !== null}
+                >
+                  Gerar senha temporária
+                </Botao>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Modal>
   );
 }
 

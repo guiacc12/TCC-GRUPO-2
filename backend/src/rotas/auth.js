@@ -23,7 +23,8 @@ rotasAuth.post('/login', async (req, res, next) => {
     const { email, senha } = esquemaLogin.parse(req.body);
 
     const [linhas] = await banco.query(
-      `SELECT u.id, u.empresa_id, u.nome, u.senha_hash, u.papel, e.status AS empresa_status, e.nome AS empresa_nome
+      `SELECT u.id, u.empresa_id, u.nome, u.senha_hash, u.papel, u.deve_trocar_senha,
+              e.status AS empresa_status, e.nome AS empresa_nome
        FROM usuarios u JOIN empresas e ON e.id = u.empresa_id
        WHERE u.email = ? AND u.ativo = 1`,
       [email]
@@ -44,7 +45,13 @@ rotasAuth.post('/login', async (req, res, next) => {
     res.json({
       sucesso: true,
       token,
-      usuario: { id: usuario.id, nome: usuario.nome, papel: usuario.papel, empresa: usuario.empresa_nome },
+      usuario: {
+        id: usuario.id,
+        nome: usuario.nome,
+        papel: usuario.papel,
+        empresa: usuario.empresa_nome,
+        deve_trocar_senha: Boolean(usuario.deve_trocar_senha),
+      },
     });
   } catch (erro) {
     next(erro);

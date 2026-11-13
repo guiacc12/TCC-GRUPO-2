@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   papel           ENUM('proprietario','membro') NOT NULL DEFAULT 'membro',
   ativo           TINYINT(1)      NOT NULL DEFAULT 1,
   ultimo_login_em DATETIME        NULL,
+  deve_trocar_senha TINYINT(1)    NOT NULL DEFAULT 0 COMMENT 'senha temporária gerada pelo Super Admin: só libera o painel após definir uma nova',
   criado_em       TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em   TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),

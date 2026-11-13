@@ -2,6 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Cores em canais "R G B" (sem vírgula) para alimentar rgb(var(--x) / <alpha-value>)
+ * no tailwind.config.js — isso permite que classes com opacidade (ex.: bg-bronze/30)
+ * continuem funcionando com cores vindas de variável CSS.
+ */
+:root {
+  /* Tinta: tom sempre escuro, não inverte com o tema — usado como texto sobre o acento bronze */
+  --tinta: 10 10 12;
+
+  --grafite-950: 10 10 12;
+  --grafite-900: 15 15 18;
+  --grafite-850: 20 20 24;
+  --grafite-800: 26 26 32;
+  --grafite-700: 38 38 46;
+  --osso: 233 229 220;
+  --osso-suave: 185 180 168;
+  --osso-mudo: 126 122 112;
+  --bronze: 200 174 126;
+  --bronze-claro: 224 204 164;
+  --bronze-escuro: 143 122 82;
+  --estado-ok: 143 188 159;
+  --estado-erro: 201 138 128;
+  --estado-aviso: 205 179 126;
+  --estado-info: 143 168 188;
+  --linha: rgba(233, 229, 220, 0.08);
+  --linha-forte: rgba(233, 229, 220, 0.16);
+  --vidro: rgba(233, 229, 220, 0.03);
+  --vidro-forte: rgba(233, 229, 220, 0.06);
+}
+
+:root[data-tema='claro'] {
+  --grafite-950: 244 241 233;
+  --grafite-900: 236 231 217;
+  --grafite-850: 228 222 203;
+  --grafite-800: 220 212 189;
+  --grafite-700: 207 196 166;
+  --osso: 28 26 21;
+  --osso-suave: 70 66 58;
+  --osso-mudo: 95 91 78;
+  --bronze: 156 122 66;
+  --bronze-claro: 184 149 92;
+  --bronze-escuro: 111 88 48;
+  --estado-ok: 50 112 76;
+  --estado-erro: 168 68 52;
+  --estado-aviso: 122 90 20;
+  --estado-info: 62 102 134;
+  --linha: rgba(28, 26, 21, 0.1);
+  --linha-forte: rgba(28, 26, 21, 0.2);
+  --vidro: rgba(255, 255, 255, 0.55);
+  --vidro-forte: rgba(255, 255, 255, 0.75);
+}
+
 @layer base {
   body {
     @apply bg-grafite-950 text-osso font-corpo antialiased;
@@ -9,6 +61,7 @@
       radial-gradient(ellipse 80% 50% at 70% -10%, rgba(200, 174, 126, 0.06), transparent),
       radial-gradient(ellipse 60% 40% at 0% 100%, rgba(143, 168, 188, 0.04), transparent);
     background-attachment: fixed;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
   ::selection {
     @apply bg-bronze/30;

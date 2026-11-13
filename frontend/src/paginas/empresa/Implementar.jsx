@@ -45,7 +45,7 @@ export default function Implementar() {
             onClick={() => setPlataforma(item.id)}
             className={`rounded-campo px-4 py-2 text-sm border transition-all duration-200 ${
               plataforma === item.id
-                ? 'bg-bronze text-grafite-950 border-bronze font-medium'
+                ? 'bg-bronze text-tinta border-bronze font-medium'
                 : 'bg-vidro border-linha text-osso-suave hover:border-linha-forte'
             }`}
           >
@@ -121,7 +121,7 @@ function GuiaWordpress({ contexto }) {
             </thead>
             <tbody>
               {camposVisiveis.map((campo) => (
-                <tr key={campo.nome_campo} className="border-b border-linha/50">
+                <tr key={campo.nome_campo} className="border-b border-linha">
                   <td className="py-2 pr-6 text-osso-suave">{campo.rotulo}</td>
                   <td className="py-2">
                     <code className="text-bronze-claro bg-grafite-800 px-2 py-0.5 rounded text-xs">{campo.nome_campo}</code>

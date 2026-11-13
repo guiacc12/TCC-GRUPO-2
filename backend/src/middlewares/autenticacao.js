@@ -28,12 +28,16 @@ export async function autenticarEmpresa(req, res, next) {
     if (payload.tipo !== 'empresa') throw new ErroHttp(403, 'Acesso restrito ao painel da empresa');
 
     const [linhas] = await banco.query(
-      `SELECT e.status FROM usuarios u JOIN empresas e ON e.id = u.empresa_id
+      `SELECT e.status, u.deve_trocar_senha FROM usuarios u JOIN empresas e ON e.id = u.empresa_id
        WHERE u.id = ? AND u.empresa_id = ? AND u.ativo = 1`,
       [payload.sub, payload.empresa_id]
     );
     if (linhas.length === 0) throw new ErroHttp(401, 'Sessão inválida');
     if (linhas[0].status !== 'ativa') throw new ErroHttp(403, 'Empresa suspensa — contate o suporte');
+    // Com senha temporária ativa, a única rota liberada é a de troca de senha (vale também para sessões já abertas)
+    if (linhas[0].deve_trocar_senha && req.path !== '/conta') {
+      throw new ErroHttp(403, 'Defina uma nova senha para continuar', 'TROCA_SENHA_OBRIGATORIA');
+    }
 
     req.empresaId = payload.empresa_id;
     req.usuarioId = payload.sub;

@@ -1,12 +1,61 @@
 import { Router } from 'express';
+import { randomInt } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { banco, emTransacao } from '../config/banco.js';
 import { autenticarAdmin } from '../middlewares/autenticacao.js';
 import { ErroHttp } from '../middlewares/erros.js';
+import { atualizarContaAdmin } from './conta.js';
 
 export const rotasAdmin = Router();
 rotasAdmin.use(autenticarAdmin);
+
+const esquemaId = z.string().regex(/^[1-9]\d*$/, 'ID inválido');
+
+// Nome e senha do próprio Super Admin
+rotasAdmin.put('/conta', atualizarContaAdmin);
+
+// Sem caracteres ambíguos (0/O, 1/l/I): a senha é ditada/colada pelo admin para o cliente
+const ALFABETO_SENHA = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+const gerarSenhaTemporaria = (tamanho = 12) =>
+  Array.from({ length: tamanho }, () => ALFABETO_SENHA[randomInt(ALFABETO_SENHA.length)]).join('');
+
+rotasAdmin.get('/empresas/:id/usuarios', async (req, res, next) => {
+  try {
+    const id = esquemaId.parse(req.params.id);
+    const [empresa] = await banco.query('SELECT id FROM empresas WHERE id = ?', [id]);
+    if (empresa.length === 0) throw new ErroHttp(404, 'Empresa não encontrada');
+
+    const [usuarios] = await banco.query(
+      `SELECT id, nome, email, papel, ativo, ultimo_login_em, deve_trocar_senha
+       FROM usuarios WHERE empresa_id = ?
+       ORDER BY papel = 'proprietario' DESC, nome`,
+      [id]
+    );
+    res.json({ sucesso: true, usuarios });
+  } catch (erro) {
+    next(erro);
+  }
+});
+
+// Recuperação de acesso: a senha temporária é devolvida UMA vez e só o hash fica no banco
+rotasAdmin.post('/usuarios/:id/redefinir-senha', async (req, res, next) => {
+  try {
+    const id = esquemaId.parse(req.params.id);
+    const senhaTemporaria = gerarSenhaTemporaria();
+    const senhaHash = await bcrypt.hash(senhaTemporaria, 10);
+
+    const [resultado] = await banco.query(
+      'UPDATE usuarios SET senha_hash = ?, deve_trocar_senha = 1 WHERE id = ?',
+      [senhaHash, id]
+    );
+    if (resultado.affectedRows === 0) throw new ErroHttp(404, 'Usuário não encontrado');
+
+    res.json({ sucesso: true, senha_temporaria: senhaTemporaria });
+  } catch (erro) {
+    next(erro);
+  }
+});
 
 const esquemaNovaEmpresa = z.object({
   nome: z.string().min(2).max(160),

@@ -1,0 +1,22 @@
+# Dependências (reinstale com npm install)
+node_modules/
+
+# Variáveis de ambiente — contêm segredos (JWT_SECRET, CRYPTO_KEY, chaves de API).
+# O modelo versionado é o .env.example.
+.env
+.env.*
+!.env.example
+
+# Build e cache
+dist/
+build/
+.vite/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operacional / editores
+.DS_Store
+Thumbs.db
+.idea/

@@ -462,7 +462,7 @@ function EditorFormulario({ inicial, aoFechar, aoSalvar }) {
 
               {/* Dois selects: Pessoa e Deal — só quando CRM configurado e campo não é oculto */}
               {opcoesMapeamentoPessoa && campo.tipo !== 'oculto' && (
-                <div className="border-t border-linha/40 pt-3 grid md:grid-cols-2 gap-3">
+                <div className="border-t border-linha pt-3 grid md:grid-cols-2 gap-3">
                   <Selecao
                     rotulo="Mapear para Pessoa"
                     value={campo.mapeamento_pessoa}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, sessao } from '../lib/api.js';
-import { Botao, Campo } from '../componentes/ui.jsx';
+import { Botao, BotaoTema, Campo } from '../componentes/ui.jsx';
 import { useRevelar } from '../lib/animacoes.js';
 
 /** Tela de login compartilhada — split editorial: manifesto à esquerda, acesso à direita. */
@@ -32,7 +32,11 @@ export default function Login({ perfil = 'empresa' }) {
   }
 
   return (
-    <div ref={ref} className="min-h-screen grid lg:grid-cols-[1.2fr_1fr]">
+    <div ref={ref} className="min-h-screen grid lg:grid-cols-[1.2fr_1fr] relative">
+      <div className="absolute top-6 right-6 z-10">
+        <BotaoTema />
+      </div>
+
       {/* Manifesto editorial */}
       <section className="hidden lg:flex flex-col justify-between p-14 border-r border-linha">
         <p className="font-editorial text-2xl tracking-wide" data-revelar>

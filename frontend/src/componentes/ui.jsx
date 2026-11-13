@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTema } from '../contextos/TemaContexto.jsx';
 
 // ---------------------------------------------------------------------------
 // Primitivas do design system — todas as telas montam a partir daqui.
@@ -6,7 +7,7 @@ import { useEffect, useState } from 'react';
 
 export function Botao({ variante = 'primario', className = '', carregando = false, children, ...props }) {
   const estilos = {
-    primario: 'bg-bronze text-grafite-950 hover:bg-bronze-claro font-medium',
+    primario: 'bg-bronze text-tinta hover:bg-bronze-claro font-medium',
     fantasma: 'bg-vidro border border-linha text-osso hover:bg-vidro-forte hover:border-linha-forte',
     perigo: 'bg-transparent border border-estado-erro/30 text-estado-erro hover:bg-estado-erro/10',
     sutil: 'bg-transparent text-osso-suave hover:text-osso',
@@ -74,12 +75,40 @@ export function Alternador({ rotulo, ativo, aoMudar }) {
         }`}
       >
         <span
-          className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-grafite-950 transition-transform duration-200 ${
+          className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-grafite-950 shadow-[0_0_0_1px_var(--linha-forte)] transition-transform duration-200 ${
             ativo ? 'translate-x-4' : 'translate-x-0'
           }`}
         />
       </span>
       {rotulo}
+    </button>
+  );
+}
+
+export function BotaoTema() {
+  const { tema, alternarTema } = useTema();
+  const claro = tema === 'claro';
+  return (
+    <button
+      type="button"
+      onClick={alternarTema}
+      aria-label={claro ? 'Mudar para tema escuro' : 'Mudar para tema claro'}
+      title={claro ? 'Tema claro' : 'Tema escuro'}
+      className="flex items-center gap-3 text-xs text-osso-suave hover:text-osso transition-colors"
+    >
+      <span
+        className={`relative h-5 w-9 rounded-full transition-colors duration-200 ${
+          claro ? 'bg-bronze' : 'bg-grafite-700'
+        }`}
+      >
+        <span
+          className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-grafite-950 shadow-[0_0_0_1px_var(--linha-forte)] text-[10px] flex items-center justify-center
+            transition-transform duration-200 ${claro ? 'translate-x-4' : 'translate-x-0'}`}
+        >
+          {claro ? '☀' : '☾'}
+        </span>
+      </span>
+      {claro ? 'Claro' : 'Escuro'}
     </button>
   );
 }
@@ -113,23 +142,25 @@ export function CabecalhoPagina({ etiqueta, titulo, descricao, acoes }) {
   );
 }
 
-export function Modal({ aberto, titulo, aoFechar, largura = 'max-w-lg', children }) {
+export function Modal({ aberto, titulo, aoFechar, largura = 'max-w-lg', fechavel = true, children }) {
   useEffect(() => {
     const aoTeclar = (evento) => evento.key === 'Escape' && aoFechar();
-    if (aberto) window.addEventListener('keydown', aoTeclar);
+    if (aberto && fechavel) window.addEventListener('keydown', aoTeclar);
     return () => window.removeEventListener('keydown', aoTeclar);
-  }, [aberto, aoFechar]);
+  }, [aberto, fechavel, aoFechar]);
 
   if (!aberto) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-grafite-950/80 backdrop-blur-sm" onClick={aoFechar} />
+      <div className="absolute inset-0 bg-grafite-950/80 backdrop-blur-sm" onClick={fechavel ? aoFechar : undefined} />
       <div className={`relative w-full ${largura} cartao bg-grafite-900/95 p-6 max-h-[88vh] overflow-y-auto`}>
         <div className="flex items-start justify-between gap-4 mb-5">
           <h2 className="titulo-editorial text-xl">{titulo}</h2>
-          <button onClick={aoFechar} className="text-osso-mudo hover:text-osso text-xl leading-none">
-            ×
-          </button>
+          {fechavel && (
+            <button onClick={aoFechar} className="text-osso-mudo hover:text-osso text-xl leading-none">
+              ×
+            </button>
+          )}
         </div>
         {children}
       </div>

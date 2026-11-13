@@ -12,6 +12,7 @@ import { rotasLeads } from './rotas/leads.js';
 import { rotasCrm } from './rotas/crm.js';
 import { rotasWhatsapp } from './rotas/whatsapp.js';
 import { rotasRelatorios } from './rotas/relatorios.js';
+import { rotasContaEmpresa } from './rotas/conta.js';
 
 export const app = express();
 
@@ -49,6 +50,7 @@ app.use('/api/admin', rotasAdmin);
 
 // Painel da empresa — tudo abaixo exige JWT de empresa; empresa_id sai do token
 app.use('/api/empresa', autenticarEmpresa);
+app.use('/api/empresa/conta', rotasContaEmpresa);
 app.use('/api/empresa/formularios', rotasFormularios);
 app.use('/api/empresa/dominios', rotasDominios);
 app.use('/api/empresa/leads', rotasLeads);

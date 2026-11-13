@@ -7,41 +7,45 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Fundos grafite/preto profundo
+        // Tinta: tom fixo, sempre escuro — não inverte com o tema. Usado como texto sobre o acento bronze
+        // (ver estilos/global.css), garantindo contraste independente de claro/escuro.
+        tinta: 'rgb(var(--tinta) / <alpha-value>)',
+        // Fundos — canais vêm de variáveis CSS (ver estilos/global.css) para suportar tema claro/escuro.
+        // Formato rgb(var(--x) / <alpha-value>): preserva o suporte a classes com opacidade (ex.: bg-bronze/30).
         grafite: {
-          950: '#0A0A0C',
-          900: '#0F0F12',
-          850: '#141418',
-          800: '#1A1A20',
-          700: '#26262E',
+          950: 'rgb(var(--grafite-950) / <alpha-value>)',
+          900: 'rgb(var(--grafite-900) / <alpha-value>)',
+          850: 'rgb(var(--grafite-850) / <alpha-value>)',
+          800: 'rgb(var(--grafite-800) / <alpha-value>)',
+          700: 'rgb(var(--grafite-700) / <alpha-value>)',
         },
-        // Texto: tom osso (quente, não branco puro)
+        // Texto
         osso: {
-          DEFAULT: '#E9E5DC',
-          suave: '#B9B4A8',
-          mudo: '#7E7A70',
+          DEFAULT: 'rgb(var(--osso) / <alpha-value>)',
+          suave: 'rgb(var(--osso-suave) / <alpha-value>)',
+          mudo: 'rgb(var(--osso-mudo) / <alpha-value>)',
         },
         // Acento neutro sofisticado: bronze envelhecido
         bronze: {
-          DEFAULT: '#C8AE7E',
-          claro: '#E0CCA4',
-          escuro: '#8F7A52',
+          DEFAULT: 'rgb(var(--bronze) / <alpha-value>)',
+          claro: 'rgb(var(--bronze-claro) / <alpha-value>)',
+          escuro: 'rgb(var(--bronze-escuro) / <alpha-value>)',
         },
         // Estados, dessaturados para não gritar no dark
         estado: {
-          ok: '#8FBC9F',
-          erro: '#C98A80',
-          aviso: '#CDB37E',
-          info: '#8FA8BC',
+          ok: 'rgb(var(--estado-ok) / <alpha-value>)',
+          erro: 'rgb(var(--estado-erro) / <alpha-value>)',
+          aviso: 'rgb(var(--estado-aviso) / <alpha-value>)',
+          info: 'rgb(var(--estado-info) / <alpha-value>)',
         },
       },
       borderColor: {
-        linha: 'rgba(233, 229, 220, 0.08)',
-        'linha-forte': 'rgba(233, 229, 220, 0.16)',
+        linha: 'var(--linha)',
+        'linha-forte': 'var(--linha-forte)',
       },
       backgroundColor: {
-        vidro: 'rgba(233, 229, 220, 0.03)',
-        'vidro-forte': 'rgba(233, 229, 220, 0.06)',
+        vidro: 'var(--vidro)',
+        'vidro-forte': 'var(--vidro-forte)',
       },
       fontFamily: {
         editorial: ['Fraunces', 'Georgia', 'serif'],

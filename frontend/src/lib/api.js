@@ -73,8 +73,17 @@ export async function api(caminho, { metodo = 'GET', corpo, perfil = 'empresa' }
     ...(corpo !== undefined && { body: JSON.stringify(corpo) }),
   });
   const dados = await resposta.json().catch(() => ({}));
+  if (dados.codigo === 'TROCA_SENHA_OBRIGATORIA') marcarTrocaObrigatoria(perfil);
   if (!resposta.ok || dados.sucesso === false) throw erroDaResposta(resposta.status, dados);
   return dados;
+}
+
+/** Senha redefinida pelo admin com o painel já aberto: recarrega para o layout exibir a troca obrigatória. */
+function marcarTrocaObrigatoria(perfil) {
+  const atual = sessao.obter(perfil);
+  if (!atual?.usuario || atual.usuario.deve_trocar_senha) return;
+  sessao.guardar(perfil, { ...atual, usuario: { ...atual.usuario, deve_trocar_senha: true } });
+  window.location.reload();
 }
 
 /**

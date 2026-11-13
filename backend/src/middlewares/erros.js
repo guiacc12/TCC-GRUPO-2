@@ -33,9 +33,11 @@ z.setErrorMap((issue, ctx) => {
 
 /** Erro de negócio com status HTTP — lançado pelas rotas/serviços. */
 export class ErroHttp extends Error {
-  constructor(status, mensagem) {
+  /** `codigo` é opcional e vai na resposta para o frontend reagir sem depender do texto. */
+  constructor(status, mensagem, codigo) {
     super(mensagem);
     this.status = status;
+    this.codigo = codigo;
   }
 }
 
@@ -77,7 +79,7 @@ export function tratadorDeErros(erro, req, res, next) {
     if (erro.tecnico) {
       logger.aviso('falha em serviço externo', { rota: `${req.method} ${req.originalUrl}`, tecnico: erro.tecnico });
     }
-    return res.status(erro.status).json({ sucesso: false, erro: erro.message });
+    return res.status(erro.status).json({ sucesso: false, erro: erro.message, ...(erro.codigo && { codigo: erro.codigo }) });
   }
   if (erro.type === 'entity.parse.failed') {
     return res.status(400).json({ sucesso: false, erro: 'JSON malformado' });
